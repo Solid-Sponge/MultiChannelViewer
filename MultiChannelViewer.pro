@@ -25,7 +25,8 @@ HEADERS  += multichannelviewer.h \
 
 FORMS    += multichannelviewer.ui
 
-DISTFILES +=
+DISTFILES += \
+    README.md
 
 macx: ICON = icon.icns
 
