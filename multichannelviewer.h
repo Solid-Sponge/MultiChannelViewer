@@ -147,19 +147,21 @@ private slots:
 
     void on_Record_toggled(bool checked);
 
+    void on_Screenshot_clicked();
+
 private:
     Ui::MultiChannelViewer *ui;
     Camera Cam1;                    //!< White Light Camera
     Camera Cam2;                    //!< Near Infrared Camera
     QThread thread1;                //!< WL Cam streaming thread
     QThread thread2;                //!< NIR Cam streaming thread
-    //VideoEncoder Vid1;              //!< WL Video Encoder
-    //VideoEncoder Vid2;              //!< NIR Video Encoder
-    FFMPEG Video1;
-    FFMPEG Video2;
+    FFMPEG Video1;                  //!< WL Video Encoder
+    FFMPEG Video2;                  //!< NIR Video Encoder
     unsigned short minVal;          //!< False Coloring Minimum Threshold
     unsigned short maxVal;          //!< False Coloring Maximum Threshold
     bool recording;                 //!< Set to true when Video Encoders are recording
+    bool screenshot_cam1;           //!< Set to true when screenshotting cam1
+    bool screenshot_cam2;           //!< Set to true when screenshotting cam2
 };
 
 #endif // MULTICHANNELVIEWER_H

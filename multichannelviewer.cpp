@@ -12,10 +12,14 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
 {
     ui->setupUi(this);
     this->show();   //!< Displays main GUI
+
+
+    /// Setting initial values for recording, screenshot, and False-coloring thresholds
     minVal = 0;
     maxVal = 4000;
     recording = false;
-
+    screenshot_cam1 = false;
+    screenshot_cam2 = false;
     ui->minVal->setRange(0,4095);
     ui->maxVal->setRange(0,4095);
     ui->maxVal->setValue(4000);
@@ -26,7 +30,6 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
         Cam2.moveToThread(&thread2); //!< Assigns Cam2 to Thread2
 
         Cam2.SetMono16Bit();    //!< Enables 16-bit Mono format for Cam2 (NIR cam)
-
 
 
         /// Connects various slots and signals. Identical for the second set of connections
@@ -138,7 +141,6 @@ bool MultiChannelViewer::ConnectToCam()
 void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
 {
     tPvFrame* FramePtr1 = cam->getFramePtr();
-    //clock_t t = clock();
 
     unsigned long line_padding = ULONG_PADDING(FramePtr1->Width*3);
     unsigned long line_size = (FramePtr1->Width*3) + line_padding;
@@ -146,13 +148,7 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
     unsigned char* buffer = new unsigned char[buffer_size];
     unsigned char* bufferPtr = buffer;
 
-    /// Converts 8-bit Bayer to 24-bit RGB. Requires a buffer and optional line_padding
-    //PvUtilityColorInterpolate(FramePtr1, &buffer[0], &buffer[1], &buffer[2], 2, line_padding);
-
     PvUtilityColorInterpolate(FramePtr1, &buffer[0], &buffer[1], &buffer[2], 2, 0);
-
-    //tPvFrame* FramePtr1 = cam->getFramePtr();
-    //unsigned char* bufferPtr = static_cast<unsigned char*>(FramePtr1->ImageBuffer);
 
     QImage imgFrame(FramePtr1->Width, FramePtr1->Height, QImage::Format_RGB888);
 
@@ -170,30 +166,32 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
             QRgb color = qRgb(r, g, b);
             imgFrame.setPixel(j, i, color); //!< Displays pixel with (r,g,b) at location j,i
         }
-        //for (int k = 0; k < line_padding; k++)
-        //    bufferPtr++;
     }
+
     ui->cam_1->setScaledContents(true);
     ui->cam_1->setPixmap(QPixmap::fromImage(imgFrame));
     ui->cam_1->show();
-
-
-/*
-    t = clock() - t;
-    double time = static_cast<double>(t)/CLOCKS_PER_SEC;
-    std::cout << "Time passed: " << time << std::endl;*/
-
     qApp->processEvents();
 
+    if (screenshot_cam1)
+    {
+        QString timestamp = QDateTime::currentDateTime().toString();
+        timestamp.replace(QString(" "), QString("_"));
+        timestamp.replace(QString(":"), QString("-"));
+        timestamp.append("_WL.png");
+
+        QFile file(timestamp);
+        file.open(QIODevice::WriteOnly);
+        imgFrame.save(&file, "PNG");
+        file.close();
+        screenshot_cam1 = false;
+    }
     if (recording)
     {
-        //Vid1.capture_frame(buffer);
         Video1.WriteFrame(buffer);
-        //std::cout << "Cam1 Record_frame" << std::endl;
     }
-    delete[] buffer;
 
-    //std::cout << "CamResolution1: " << FramePtr1->Width << "x" << FramePtr1->Height << std::endl;
+    delete[] buffer;
     emit renderFrame_Cam1_Done();
 }
 
@@ -279,16 +277,6 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
                 g = 255;
                 b = 255;
             }
-            /*
-            unsigned char r = *bufferPtr;
-            bufferPtr++;
-            unsigned char g = *bufferPtr;
-            bufferPtr++;
-            unsigned char b = *bufferPtr;
-            bufferPtr++;*/
-
-
-
 
             bufferPtr[0] = r;
             bufferPtr[1] = g;
@@ -299,17 +287,28 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
             imgFrame.setPixel(j, i, color);
             rawPtr++;
         }
-        //for (int k = 0; k < line_padding; k++)
-         //   bufferPtr++;
     }
     ui->cam_2->setScaledContents(true);
     ui->cam_2->setPixmap(QPixmap::fromImage(imgFrame));
     ui->cam_2->show();
     qApp->processEvents();
 
+    if (screenshot_cam2)
+    {
+        QString timestamp = QDateTime::currentDateTime().toString();
+        timestamp.replace(QString(" "), QString("_"));
+        timestamp.replace(QString(":"), QString("-"));
+        timestamp.append("_NIR.png");
+
+        QFile file(timestamp);
+        file.open(QIODevice::WriteOnly);
+        imgFrame.save(&file, "PNG");
+        file.close();
+        screenshot_cam2 = false;
+    }
+
     if (recording)
     {
-        //Vid2.capture_frame(buffer);
         Video2.WriteFrame(buffer);
     }
 
@@ -320,13 +319,8 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 
 void MultiChannelViewer::closeEvent(QCloseEvent *event)
 {
-    //PvCaptureEnd(cam1);
-    //PvCameraClose(cam1);
-
     if (recording)
     {
-        //Vid1.stop();
-        //Vid2.stop();
         Video1.CloseVideo();
         Video2.CloseVideo();
     }
@@ -386,10 +380,6 @@ void MultiChannelViewer::on_Record_toggled(bool checked)
 {
     if (checked)
     {
-        //this->Vid1.setup(640, 480, "_WL");
-        //this->Vid2.setup(640, 480, "_NIR");
-        //recording = true;
-
         QString timestamp_filename_WL;
         QString timestamp_WL = QDateTime::currentDateTime().toString();
         timestamp_filename_WL = timestamp_WL + QString::fromLatin1("_WL") + QString(".avi");
@@ -422,12 +412,14 @@ void MultiChannelViewer::on_Record_toggled(bool checked)
     }
     if (!checked)
     {
-        //recording = false;
-        //this->Vid1.stop();
-        //this->Vid2.stop();
-
         recording = false;
         Video1.CloseVideo();
         Video2.CloseVideo();
     }
+}
+
+void MultiChannelViewer::on_Screenshot_clicked()
+{
+    this->screenshot_cam1 = true;
+    this->screenshot_cam2 = true;
 }
