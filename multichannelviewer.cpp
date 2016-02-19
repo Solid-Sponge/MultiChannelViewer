@@ -138,6 +138,7 @@ bool MultiChannelViewer::ConnectToCam()
     return false;
 }
 
+
 void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
 {
     tPvFrame* FramePtr1 = cam->getFramePtr();
@@ -164,7 +165,7 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
             unsigned char b = *bufferPtr;   //!< B-Pixel
             bufferPtr++;
             QRgb color = qRgb(r, g, b);
-            imgFrame.setPixel(j, i, color); //!< Displays pixel with (r,g,b) at location j,i
+            imgFrame.setPixel(FramePtr1->Width - j - 1, i, color); //!< Displays pixel with (r,g,b) at location j,i
         }
     }
 
@@ -188,6 +189,20 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
     }
     if (recording)
     {
+        //unsigned char* mirror_buffer = new unsigned char[buffer_size];
+        //unsigned char* mirror_buffer_Ptr = mirror_buffer;
+        bufferPtr = buffer;
+        for (int i = 0; i < FramePtr1->Height; i++)
+        {
+           bufferPtr = buffer + FramePtr1->Width*i;
+           for (int j = 0; j < FramePtr1->Width / 2; j++)
+           {
+               //unsigned char tempR = bufferPtr[j];
+               //bufferPtr[j] = bufferPtr[FramePtr1->Width - 1 - j];
+              // bufferPtr[FramePtr1->Width - 1 - j] = temp;
+              // swapPixel(i,j,i, FramePtr1->Width - j - 1)
+           }
+        }
         Video1.WriteFrame(buffer);
     }
 

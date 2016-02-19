@@ -52,11 +52,13 @@ void Camera::captureSetup()
         PvAttrUint32Set(this->Handle, "ExposureValue", 300000);
         PvAttrUint32Set(this->Handle,"StreamBytesPerSecond", 115000000 / 2 - 20000000);
 
-        PvAttrUint32Set(this->Handle, "BinningX", 2);
-        PvAttrUint32Set(this->Handle, "BinningY", 2);
+        PvAttrUint32Set(this->Handle, "BinningX", 1);
+        PvAttrUint32Set(this->Handle, "BinningY", 1);
 
         PvAttrUint32Set(this->Handle, "Width", 640); //x = 269
         PvAttrUint32Set(this->Handle, "Height", 480); //y = 332
+        PvAttrUint32Set(this->Handle, "RegionX", 400);
+        PvAttrUint32Set(this->Handle, "RegionY", 250);
     }
     else
     {
@@ -68,10 +70,12 @@ void Camera::captureSetup()
 
         PvAttrUint32Set(this->Handle, "Width", 640); //x = 269
         PvAttrUint32Set(this->Handle, "Height", 480); //y = 332
-        PvAttrUint32Set(this->Handle, "RegionX", 0);
-        PvAttrUint32Set(this->Handle, "RegionY", 150);
+        PvAttrUint32Set(this->Handle, "RegionX", 400);
+        PvAttrUint32Set(this->Handle, "RegionY", 250);
 
-        PvAttrUint32Set(this->Handle, "ExposureAutoMax", 333334);
+        //PvAttrUint32Set(this->Handle, "ExposureAutoMax", 333334);
+        PvAttrEnumSet(this->Handle, "ExposureMode", "Manual");
+        PvAttrUint32Set(this->Handle, "ExposureValue", 30000);
 
     }
 

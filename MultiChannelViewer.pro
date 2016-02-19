@@ -40,8 +40,6 @@ macx: LIBS += -L$$PWD -lPvAPI
 
 
 
-
-
 QMAKE_LFLAGS += -F//System/Library/Frameworks
 macx: LIBS += -framework CoreFoundation
 macx: LIBS += -framework CoreVideo
