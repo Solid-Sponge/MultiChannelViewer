@@ -94,6 +94,7 @@ public:
      */
     bool ConnectToCam();    //!< TODO: Implement a way of discriminating between NIR and WL cams
 
+
 signals:
 
     /**
