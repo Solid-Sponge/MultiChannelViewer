@@ -165,10 +165,11 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
             unsigned char b = *bufferPtr;   //!< B-Pixel
             bufferPtr++;
             QRgb color = qRgb(r, g, b);
-            imgFrame.setPixel(FramePtr1->Width - j - 1, i, color); //!< Displays pixel with (r,g,b) at location j,i
+            //imgFrame.setPixel(FramePtr1->Width - j - 1, i, color); //!< Displays pixel with (r,g,b) at location j,i
+            imgFrame.setPixel(j, i, color);
         }
     }
-
+    imgFrame = imgFrame.mirrored(true, false);
     ui->cam_1->setScaledContents(true);
     ui->cam_1->setPixmap(QPixmap::fromImage(imgFrame));
     ui->cam_1->show();
@@ -191,19 +192,10 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
     {
         //unsigned char* mirror_buffer = new unsigned char[buffer_size];
         //unsigned char* mirror_buffer_Ptr = mirror_buffer;
-        bufferPtr = buffer;
-        for (int i = 0; i < FramePtr1->Height; i++)
-        {
-           bufferPtr = buffer + FramePtr1->Width*i;
-           for (int j = 0; j < FramePtr1->Width / 2; j++)
-           {
-               //unsigned char tempR = bufferPtr[j];
-               //bufferPtr[j] = bufferPtr[FramePtr1->Width - 1 - j];
-              // bufferPtr[FramePtr1->Width - 1 - j] = temp;
-              // swapPixel(i,j,i, FramePtr1->Width - j - 1)
-           }
-        }
-        Video1.WriteFrame(buffer);
+        unsigned char* mirror_buffer;
+        mirror_buffer = imgFrame.bits();
+        //Video1.WriteFrame(buffer);
+        Video1.WriteFrame(mirror_buffer);
     }
 
     delete[] buffer;

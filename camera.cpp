@@ -59,6 +59,9 @@ void Camera::captureSetup()
         PvAttrUint32Set(this->Handle, "Height", 480); //y = 332
         PvAttrUint32Set(this->Handle, "RegionX", 400);
         PvAttrUint32Set(this->Handle, "RegionY", 250);
+
+        PvAttrEnumSet(this->Handle, "ExposureMode", "Manual");
+        PvAttrUint32Set(this->Handle, "ExposureValue", 300000);
     }
     else
     {
