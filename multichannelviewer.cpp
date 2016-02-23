@@ -22,7 +22,14 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
     screenshot_cam2 = false;
     ui->minVal->setRange(0,4095);
     ui->maxVal->setRange(0,4095);
-    ui->maxVal->setValue(4000);
+    ui->minVal->setValue(10);
+    ui->maxVal->setValue(200);
+
+    Cam1_Image = new QImage(WIDTH, HEIGHT, QImage::Format_RGB888);
+    Cam2_Image = new QImage(WIDTH, HEIGHT, QImage::Format_RGB888);
+
+    Cam1_Image->fill(0);
+    Cam2_Image->fill(0);
 
     if (this->InitializePv() && this->ConnectToCam()) //!< Executes if PvAPI initializes and Cameras connect successfully
     {
@@ -142,6 +149,8 @@ bool MultiChannelViewer::ConnectToCam()
 void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
 {
     tPvFrame* FramePtr1 = cam->getFramePtr();
+    tPvHandle* CamHandle = cam->getHandle();
+    //PvAttrUint32Set(*CamHandle, "ExposureValue", 15000);
 
     unsigned long line_padding = ULONG_PADDING(FramePtr1->Width*3);
     unsigned long line_size = (FramePtr1->Width*3) + line_padding;
@@ -173,6 +182,8 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
     ui->cam_1->setScaledContents(true);
     ui->cam_1->setPixmap(QPixmap::fromImage(imgFrame));
     ui->cam_1->show();
+
+    *Cam1_Image = imgFrame;
     qApp->processEvents();
 
     if (screenshot_cam1)
@@ -198,6 +209,8 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
         Video1.WriteFrame(mirror_buffer);
     }
 
+    renderFrame_Cam3();
+
     delete[] buffer;
     emit renderFrame_Cam1_Done();
 }
@@ -205,6 +218,8 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
 void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 {
     tPvFrame* FramePtr1 = cam->getFramePtr();
+    tPvHandle* CamHandle = cam->getHandle();
+    PvAttrUint32Set(*CamHandle, "ExposureValue", 500000);
 
 
     //unsigned short* rawPtr = (unsigned short)FramePtr1->ImageBuffer;
@@ -222,6 +237,7 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
     thresh4 = thresh3 + space;
     thresh5 = thresh4 + space;
     thresh6 = thresh5 + space;
+
 
     unsigned char* buffer = new unsigned char[3*FramePtr1->Height*FramePtr1->Width];
     unsigned char* bufferPtr = buffer;
@@ -298,6 +314,8 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
     ui->cam_2->setScaledContents(true);
     ui->cam_2->setPixmap(QPixmap::fromImage(imgFrame));
     ui->cam_2->show();
+
+    *Cam2_Image = imgFrame;
     qApp->processEvents();
 
     if (screenshot_cam2)
@@ -319,9 +337,29 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
         Video2.WriteFrame(buffer);
     }
 
+    renderFrame_Cam3();
+
     delete[] buffer;
 
     emit renderFrame_Cam2_Done();
+}
+
+void MultiChannelViewer::renderFrame_Cam3()
+{
+    QPixmap imgFrame(Cam1_Image->size());
+    QPainter p(&imgFrame);
+
+    p.drawImage(QPoint(0,0), *Cam1_Image);
+    p.setOpacity(0.2);
+    p.drawImage(QPoint(0,0), *Cam2_Image);
+    p.end();
+
+    ui->cam_3->setScaledContents(true);
+    ui->cam_3->setPixmap(imgFrame);
+    ui->cam_3->show();
+    qApp->processEvents();
+
+
 }
 
 void MultiChannelViewer::closeEvent(QCloseEvent *event)

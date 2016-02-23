@@ -34,6 +34,11 @@ tPvFrame* Camera::getFramePtr()
     return &(this->Frames[0]);
 }
 
+tPvHandle* Camera::getHandle()
+{
+    return &(this->Handle);
+}
+
 bool Camera::GrabHandleFromID()
 {
     tPvErr err = PvCameraOpen(this->ID, ePvAccessMaster, &Handle);
@@ -47,21 +52,18 @@ void Camera::captureSetup()
     if (this->Mono16)
     {
         PvAttrEnumSet(this->Handle, "PixelFormat", "Mono16");   //!< Sets frame format to Mono 16-bit if Mono16 = true
-        //PvAttrBooleanSet(this->Handle, "StreamFrameRateConstrain", true);
+        PvAttrBooleanSet(this->Handle, "StreamFrameRateConstrain", true);
         PvAttrEnumSet(this->Handle, "ExposureMode", "Manual");
-        PvAttrUint32Set(this->Handle, "ExposureValue", 300000);
+        PvAttrUint32Set(this->Handle, "ExposureValue", 500000);
         PvAttrUint32Set(this->Handle,"StreamBytesPerSecond", 115000000 / 2 - 20000000);
 
         PvAttrUint32Set(this->Handle, "BinningX", 1);
         PvAttrUint32Set(this->Handle, "BinningY", 1);
 
-        PvAttrUint32Set(this->Handle, "Width", 640); //x = 269
-        PvAttrUint32Set(this->Handle, "Height", 480); //y = 332
-        PvAttrUint32Set(this->Handle, "RegionX", 400);
-        PvAttrUint32Set(this->Handle, "RegionY", 250);
-
-        PvAttrEnumSet(this->Handle, "ExposureMode", "Manual");
-        PvAttrUint32Set(this->Handle, "ExposureValue", 300000);
+        PvAttrUint32Set(this->Handle, "Width", 640);
+        PvAttrUint32Set(this->Handle, "Height", 480);
+        PvAttrUint32Set(this->Handle, "RegionX", 450);  //x = 400
+        PvAttrUint32Set(this->Handle, "RegionY", 180);  //y = 250
     }
     else
     {
@@ -73,12 +75,12 @@ void Camera::captureSetup()
 
         PvAttrUint32Set(this->Handle, "Width", 640); //x = 269
         PvAttrUint32Set(this->Handle, "Height", 480); //y = 332
-        PvAttrUint32Set(this->Handle, "RegionX", 400);
-        PvAttrUint32Set(this->Handle, "RegionY", 250);
+        PvAttrUint32Set(this->Handle, "RegionX", 450);
+        PvAttrUint32Set(this->Handle, "RegionY", 180);
 
-        //PvAttrUint32Set(this->Handle, "ExposureAutoMax", 333334);
-        PvAttrEnumSet(this->Handle, "ExposureMode", "Manual");
-        PvAttrUint32Set(this->Handle, "ExposureValue", 30000);
+        PvAttrUint32Set(this->Handle, "ExposureAutoMax", 333334);
+        //PvAttrEnumSet(this->Handle, "ExposureMode", "Manual");
+        //PvAttrUint32Set(this->Handle, "ExposureValue", 15000);
 
     }
 
@@ -166,7 +168,7 @@ void Camera::capture()
     }
 
     PvCaptureWaitForFrameDone(this->Handle, &(this->Frames[0]), PVINFINITE);
-    //PvCommandRun(this->Handle, "AcquisitionStop");
+    PvCommandRun(this->Handle, "AcquisitionStop");
 
 
     //PvCommandRun(this->Handle, "AcquisitionStop");

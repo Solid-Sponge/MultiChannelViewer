@@ -25,8 +25,8 @@
 #ifndef MULTICHANNELVIEWER_H
 #define MULTICHANNELVIEWER_H
 
-#define WIDTH 1390
-#define HEIGHT 1038
+#define WIDTH 640
+#define HEIGHT 480
 
 #define _OSX
 #define _x64
@@ -39,6 +39,8 @@
 #include <QLabel>
 #include <QThread>
 #include <QDateTime>
+#include <QImage>
+#include <QPainter>
 #include <iostream>
 #include <PvApi.h>
 #include <PvRegIo.h>
@@ -134,6 +136,8 @@ public slots:
      */
     void renderFrame_Cam2(Camera *cam);
 
+    void renderFrame_Cam3();
+
 protected:
     void closeEvent(QCloseEvent *event);
 
@@ -154,6 +158,8 @@ private:
     Ui::MultiChannelViewer *ui;
     Camera Cam1;                    //!< White Light Camera
     Camera Cam2;                    //!< Near Infrared Camera
+    QImage* Cam1_Image;             //!< WL Cam frame data for third screen
+    QImage* Cam2_Image;             //!< NIR Cam frame data for third screen
     QThread thread1;                //!< WL Cam streaming thread
     QThread thread2;                //!< NIR Cam streaming thread
     FFMPEG Video1;                  //!< WL Video Encoder
