@@ -154,6 +154,8 @@ private slots:
 
     void on_Screenshot_clicked();
 
+    void on_checkBox_stateChanged(int arg1);
+
 private:
     Ui::MultiChannelViewer *ui;
     Camera Cam1;                    //!< White Light Camera
@@ -169,6 +171,7 @@ private:
     bool recording;                 //!< Set to true when Video Encoders are recording
     bool screenshot_cam1;           //!< Set to true when screenshotting cam1
     bool screenshot_cam2;           //!< Set to true when screenshotting cam2
+    bool monochrome;
 };
 
 #endif // MULTICHANNELVIEWER_H

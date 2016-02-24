@@ -20,6 +20,7 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
     recording = false;
     screenshot_cam1 = false;
     screenshot_cam2 = false;
+    monochrome = false;
     ui->minVal->setRange(0,4095);
     ui->maxVal->setRange(0,4095);
     ui->minVal->setValue(10);
@@ -346,6 +347,22 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 
 void MultiChannelViewer::renderFrame_Cam3()
 {
+    if (monochrome)
+    {
+        *Cam1_Image = Cam1_Image->convertToFormat(QImage::Format_RGB32);
+
+        unsigned int *data = (unsigned int*)Cam1_Image->bits();
+        int pixelCount = Cam1_Image->width() * Cam1_Image->height();
+
+        // Convert each pixel to grayscale
+        for(int i = 0; i < pixelCount; ++i)
+        {
+           int val = qGray(*data);
+           *data = qRgba(val, val, val, qAlpha(*data));
+           ++data;
+        }
+    }
+
     QPixmap imgFrame(Cam1_Image->size());
     QPainter p(&imgFrame);
 
@@ -467,4 +484,12 @@ void MultiChannelViewer::on_Screenshot_clicked()
 {
     this->screenshot_cam1 = true;
     this->screenshot_cam2 = true;
+}
+
+void MultiChannelViewer::on_checkBox_stateChanged(int arg1)
+{
+    if (arg1 == Qt::Checked)
+        this->monochrome = true;
+    if (arg1 == Qt::Unchecked)
+        this->monochrome = false;
 }
