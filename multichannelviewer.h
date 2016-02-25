@@ -171,6 +171,7 @@ private:
     bool recording;                 //!< Set to true when Video Encoders are recording
     bool screenshot_cam1;           //!< Set to true when screenshotting cam1
     bool screenshot_cam2;           //!< Set to true when screenshotting cam2
+    bool screenshot_cam3;
     bool monochrome;
 };
 

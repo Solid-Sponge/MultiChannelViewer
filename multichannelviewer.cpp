@@ -376,7 +376,19 @@ void MultiChannelViewer::renderFrame_Cam3()
     ui->cam_3->show();
     qApp->processEvents();
 
+    if (screenshot_cam3)
+    {
+        QString timestamp = QDateTime::currentDateTime().toString();
+        timestamp.replace(QString(" "), QString("_"));
+        timestamp.replace(QString(":"), QString("-"));
+        timestamp.append("_WL+NIR.png");
 
+        QFile file(timestamp);
+        file.open(QIODevice::WriteOnly);
+        imgFrame.save(&file, "PNG");
+        file.close();
+        screenshot_cam3 = false;
+    }
 }
 
 void MultiChannelViewer::closeEvent(QCloseEvent *event)
@@ -484,6 +496,7 @@ void MultiChannelViewer::on_Screenshot_clicked()
 {
     this->screenshot_cam1 = true;
     this->screenshot_cam2 = true;
+    this->screenshot_cam3 = true;
 }
 
 void MultiChannelViewer::on_checkBox_stateChanged(int arg1)
