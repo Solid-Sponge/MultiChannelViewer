@@ -156,6 +156,10 @@ private slots:
 
     void on_checkBox_stateChanged(int arg1);
 
+    void on_maxVal_spinbox_valueChanged(int arg1);
+
+    void on_minVal_spinbox_valueChanged(int arg1);
+
 private:
     Ui::MultiChannelViewer *ui;
     Camera Cam1;                    //!< White Light Camera
@@ -166,6 +170,7 @@ private:
     QThread thread2;                //!< NIR Cam streaming thread
     FFMPEG Video1;                  //!< WL Video Encoder
     FFMPEG Video2;                  //!< NIR Video Encoder
+    FFMPEG Video3;                  //!< WL+NIR Video Encoder
     unsigned short minVal;          //!< False Coloring Minimum Threshold
     unsigned short maxVal;          //!< False Coloring Maximum Threshold
     bool recording;                 //!< Set to true when Video Encoders are recording

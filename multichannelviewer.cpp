@@ -193,8 +193,10 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
         timestamp.replace(QString(" "), QString("_"));
         timestamp.replace(QString(":"), QString("-"));
         timestamp.append("_WL.png");
+        //timestamp = QString("/Screenshot/") + timestamp;
 
         QFile file(timestamp);
+        //QFile file(QCoreApplication::applicationDirPath() + "/Screenshot/" + timestamp);
         file.open(QIODevice::WriteOnly);
         imgFrame.save(&file, "PNG");
         file.close();
@@ -359,6 +361,7 @@ void MultiChannelViewer::renderFrame_Cam3()
         {
            int val = qGray(*data);
            *data = qRgba(val, val, val, qAlpha(*data));
+           //*data = qRgb(val, val, val);
            ++data;
         }
     }
@@ -389,6 +392,13 @@ void MultiChannelViewer::renderFrame_Cam3()
         file.close();
         screenshot_cam3 = false;
     }
+
+    if (recording)
+    {
+        QImage RGB24 = imgFrame.toImage();
+        RGB24 = RGB24.convertToFormat(QImage::Format_RGB888);
+        Video3.WriteFrame(RGB24.bits());
+    }
 }
 
 void MultiChannelViewer::closeEvent(QCloseEvent *event)
@@ -397,6 +407,7 @@ void MultiChannelViewer::closeEvent(QCloseEvent *event)
     {
         Video1.CloseVideo();
         Video2.CloseVideo();
+        Video3.CloseVideo();
     }
 
     thread1.quit();
@@ -412,75 +423,109 @@ void MultiChannelViewer::closeEvent(QCloseEvent *event)
 
 void MultiChannelViewer::on_minVal_valueChanged(int value)
 {
-    if (value < this->maxVal - 200)
+    if (value < this->maxVal - 150)
     {
         this->minVal = value;
-        ui->minVal_label->setText(QString::number(value));
+        ui->minVal_spinbox->setValue(value);
+
     }
     else
     {
-        this->minVal = this->maxVal - 200;
-        ui->minVal_label->setText(QString::number(this->maxVal - 200));
+        this->minVal = this->maxVal - 150;
+        ui->minVal_spinbox->setValue(this->maxVal - 150);
     }
 }
 
 void MultiChannelViewer::on_maxVal_valueChanged(int value)
 {
-    if (value > this->minVal + 200)
+    if (value > this->minVal + 150)
     {
         this->maxVal = value;
-        ui->maxVal_label->setText(QString::number(value));
+        ui->maxVal_spinbox->setValue(value);
     }
     else
     {
-        this->maxVal = this->minVal + 200;
-        ui->maxVal_label->setText(QString::number(this->minVal + 200));
+        this->maxVal = this->minVal + 150;
+        ui->maxVal_spinbox->setValue(this->minVal + 150);
+    }
+}
+
+void MultiChannelViewer::on_minVal_spinbox_valueChanged(int arg1)
+{
+    if (arg1 < this->maxVal - 150)
+    {
+        this->minVal = arg1;
+        ui->minVal_spinbox->setValue(arg1);
+        ui->minVal->setValue(arg1);
+    }
+    else
+    {
+        this->minVal = this->maxVal - 150;
+        ui->minVal_spinbox->setValue(this->maxVal - 150);
+        ui->minVal->setValue(this->maxVal - 150);
+    }
+}
+
+void MultiChannelViewer::on_maxVal_spinbox_valueChanged(int arg1)
+{
+    if (arg1 > this->minVal + 150)
+    {
+        this->maxVal = arg1;
+        ui->maxVal_spinbox->setValue(arg1);
+        ui->maxVal->setValue(arg1);
+    }
+    else
+    {
+        this->maxVal = this->minVal + 150;
+        ui->maxVal_spinbox->setValue(this->minVal + 150);
+        ui->maxVal->setValue(this->minVal + 150);
     }
 }
 
 void MultiChannelViewer::on_minVal_sliderMoved(int position)
 {
-    if (position > this->maxVal - 200)
-        ui->minVal_label->setText(QString::number(position));
+    if (position > this->maxVal - 150)
+    {
+        ui->minVal_spinbox->setValue(position);
+    }
 }
 
 void MultiChannelViewer::on_maxVal_sliderMoved(int position)
 {
-    if (position > this->minVal + 200)
-        ui->maxVal_label->setText(QString::number(position));
+    if (position > this->minVal + 150)
+    {
+        ui->maxVal_spinbox->setValue(position);
+    }
 }
 
 void MultiChannelViewer::on_Record_toggled(bool checked)
 {
     if (checked)
     {
-        QString timestamp_filename_WL;
-        QString timestamp_WL = QDateTime::currentDateTime().toString();
-        timestamp_filename_WL = timestamp_WL + QString::fromLatin1("_WL") + QString(".avi");
-        for(int i = 0; i < timestamp_filename_WL.size(); i++)
-        {
-            if (timestamp_filename_WL[i].toLatin1() == ' ')
-                timestamp_filename_WL[i] = QChar::fromLatin1('_');
-            if (timestamp_filename_WL[i].toLatin1() == ':')
-                timestamp_filename_WL[i] = QChar::fromLatin1('-');
-        }
+        QString timestamp_filename_WL = QDateTime::currentDateTime().toString();
+        timestamp_filename_WL.append("_WL.avi");
+        timestamp_filename_WL.replace(QString(" "), QString("_"));
+        timestamp_filename_WL.replace(QString(":"), QString("-"));
+        timestamp_filename_WL = QString("Video/") + timestamp_filename_WL;
 
-        QString timestamp_filename_NIR;
-        QString timestamp_NIR = QDateTime::currentDateTime().toString();
-        timestamp_filename_NIR = timestamp_NIR + QString::fromLatin1("_NIR") + QString(".avi");
-        for(int i = 0; i < timestamp_filename_NIR.size(); i++)
-        {
-            if (timestamp_filename_NIR[i].toLatin1() == ' ')
-                timestamp_filename_NIR[i] = QChar::fromLatin1('_');
-            if (timestamp_filename_NIR[i].toLatin1() == ':')
-                timestamp_filename_NIR[i] = QChar::fromLatin1('-');
-        }
+        QString timestamp_filename_NIR = QDateTime::currentDateTime().toString();
+        timestamp_filename_NIR.append("_NIR.avi");
+        timestamp_filename_NIR.replace(QString(" "), QString("_"));
+        timestamp_filename_NIR.replace(QString(":"), QString("-"));
+
+        QString timestamp_filename_WL_NIR = QDateTime::currentDateTime().toString();
+        timestamp_filename_WL_NIR.append("_WL+NIR.avi");
+        timestamp_filename_WL_NIR.replace(QString(" "), QString("_"));
+        timestamp_filename_WL_NIR.replace(QString(":"), QString("-"));
 
         char* filename_WL = (char*) timestamp_filename_WL.toStdString().c_str();
         this->Video1.SetupVideo(filename_WL, 640, 480, 15, 2, 750000); //bitrate = 40000000
 
         char* filename_NIR = (char*) timestamp_filename_NIR.toStdString().c_str();
         this->Video2.SetupVideo(filename_NIR, 640, 480, 15, 2, 750000);
+
+        char* filename_WL_NIR = (char*) timestamp_filename_WL_NIR.toStdString().c_str();
+        this->Video3.SetupVideo(filename_WL_NIR, 640, 480, 15, 2, 750000);
 
         recording = true;
     }
@@ -489,6 +534,7 @@ void MultiChannelViewer::on_Record_toggled(bool checked)
         recording = false;
         Video1.CloseVideo();
         Video2.CloseVideo();
+        Video3.CloseVideo();
     }
 }
 

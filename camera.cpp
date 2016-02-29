@@ -84,24 +84,6 @@ void Camera::captureSetup()
 
     }
 
-
-
-    //PvAttrUint32Set(this->Handle, "Width", 640); //x = 269
-    //PvAttrUint32Set(this->Handle, "Height", 480); //y = 332
-    //PvAttrUint32Set(this->Handle, "RegionX", 0);
-    //PvAttrUint32Set(this->Handle, "RegionY", 150);
-
-    /*
-    unsigned long h;
-    unsigned long w;
-    PvAttrUint32Get(this->Handle, "Width", &w);
-    PvAttrUint32Get(this->Handle, "Height", &h);
-    std::cout << "Height: " << h << std::endl << "Width: " << w << std::endl;
-    PvAttrUint32Set(this->Handle, "Width", 500); //x = 269
-    PvAttrUint32Set(this->Handle, "Height", 375); //y = 332
-    PvAttrUint32Set(this->Handle, "RegionX", 269);
-    PvAttrUint32Set(this->Handle, "RegionY", 332);*/
-
     tPvErr errCode;
     if((errCode = PvAttrUint32Get(this->Handle,"TotalBytesPerFrame",&this->FrameSize)) != ePvErrSuccess)
     {
@@ -163,17 +145,11 @@ void Camera::capture()
         QMessageBox errBox;
         errBox.critical(0,"Error","Camera unplugged. Please replug camera and restart program.");
         errBox.setFixedSize(500,200);
-        //QThread::sleep(3);
         QApplication::exit(1);
     }
 
     PvCaptureWaitForFrameDone(this->Handle, &(this->Frames[0]), PVINFINITE);
     PvCommandRun(this->Handle, "AcquisitionStop");
-
-
-    //PvCommandRun(this->Handle, "AcquisitionStop");
-    //std::cout << "Frame caught" << std::endl;
-
 
     emit frameReady(this);
 }
