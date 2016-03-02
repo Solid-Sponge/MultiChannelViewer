@@ -136,6 +136,15 @@ public slots:
      */
     void renderFrame_Cam2(Camera *cam);
 
+    /**
+     * @brief Displays 32-bit RGBA from a combined image of WL Cam1 and NIR Cam2 in Main GUI
+     *
+     * renderFrame_Cam3() is intended for rendering the third screen.
+     * Even though the function has Cam in it, there is no third camera attached.
+     * This function renders the third screen, which is the latest NIR Cam2 image
+     * on top of hte latest WL Cam1 image (transparency layer).
+     *
+     */
     void renderFrame_Cam3();
 
 protected:
@@ -160,6 +169,8 @@ private slots:
 
     void on_minVal_spinbox_valueChanged(int arg1);
 
+    void on_opacitySlider_valueChanged(int value);
+
 private:
     Ui::MultiChannelViewer *ui;
     Camera Cam1;                    //!< White Light Camera
@@ -176,8 +187,11 @@ private:
     bool recording;                 //!< Set to true when Video Encoders are recording
     bool screenshot_cam1;           //!< Set to true when screenshotting cam1
     bool screenshot_cam2;           //!< Set to true when screenshotting cam2
-    bool screenshot_cam3;
+    bool screenshot_cam3;           //!< Set to true when screenshotting thirdscreen
     bool monochrome;
+    double opacity_val;
+    int region_x;
+    int region_y;
 };
 
 #endif // MULTICHANNELVIEWER_H

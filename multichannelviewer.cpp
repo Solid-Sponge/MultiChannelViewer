@@ -21,6 +21,7 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
     screenshot_cam1 = false;
     screenshot_cam2 = false;
     monochrome = false;
+    opacity_val = 0.1;
     ui->minVal->setRange(0,4095);
     ui->maxVal->setRange(0,4095);
     ui->minVal->setValue(10);
@@ -370,7 +371,7 @@ void MultiChannelViewer::renderFrame_Cam3()
     QPainter p(&imgFrame);
 
     p.drawImage(QPoint(0,0), *Cam1_Image);
-    p.setOpacity(0.2);
+    p.setOpacity(opacity_val);
     p.drawImage(QPoint(0,0), *Cam2_Image);
     p.end();
 
@@ -551,4 +552,9 @@ void MultiChannelViewer::on_checkBox_stateChanged(int arg1)
         this->monochrome = true;
     if (arg1 == Qt::Unchecked)
         this->monochrome = false;
+}
+
+void MultiChannelViewer::on_opacitySlider_valueChanged(int value)
+{
+    opacity_val = static_cast<double>(value) / 10.0;
 }
