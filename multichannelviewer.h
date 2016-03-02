@@ -25,8 +25,8 @@
 #ifndef MULTICHANNELVIEWER_H
 #define MULTICHANNELVIEWER_H
 
-#define WIDTH 1390
-#define HEIGHT 1038
+#define WIDTH 640
+#define HEIGHT 480
 
 #define _OSX
 #define _x64
@@ -39,6 +39,8 @@
 #include <QLabel>
 #include <QThread>
 #include <QDateTime>
+#include <QImage>
+#include <QPainter>
 #include <iostream>
 #include <PvApi.h>
 #include <PvRegIo.h>
@@ -134,6 +136,17 @@ public slots:
      */
     void renderFrame_Cam2(Camera *cam);
 
+    /**
+     * @brief Displays 32-bit RGBA from a combined image of WL Cam1 and NIR Cam2 in Main GUI
+     *
+     * renderFrame_Cam3() is intended for rendering the third screen.
+     * Even though the function has Cam in it, there is no third camera attached.
+     * This function renders the third screen, which is the latest NIR Cam2 image
+     * on top of hte latest WL Cam1 image (transparency layer).
+     *
+     */
+    void renderFrame_Cam3();
+
 protected:
     void closeEvent(QCloseEvent *event);
 
@@ -150,19 +163,45 @@ private slots:
 
     void on_Screenshot_clicked();
 
+    void on_checkBox_stateChanged(int arg1);
+
+    void on_maxVal_spinbox_valueChanged(int arg1);
+
+    void on_minVal_spinbox_valueChanged(int arg1);
+
+    void on_opacitySlider_valueChanged(int value);
+
+    void on_RegionX_WL_valueChanged(int arg1);
+
+    void on_RegionY_WL_valueChanged(int arg1);
+
+    void on_RegionX_NIR_valueChanged(int arg1);
+
+    void on_RegionY_NIR_valueChanged(int arg1);
+
 private:
     Ui::MultiChannelViewer *ui;
     Camera Cam1;                    //!< White Light Camera
     Camera Cam2;                    //!< Near Infrared Camera
+    QImage* Cam1_Image;             //!< WL Cam frame data for third screen
+    QImage* Cam2_Image;             //!< NIR Cam frame data for third screen
     QThread thread1;                //!< WL Cam streaming thread
     QThread thread2;                //!< NIR Cam streaming thread
     FFMPEG Video1;                  //!< WL Video Encoder
     FFMPEG Video2;                  //!< NIR Video Encoder
+    FFMPEG Video3;                  //!< WL+NIR Video Encoder
     unsigned short minVal;          //!< False Coloring Minimum Threshold
     unsigned short maxVal;          //!< False Coloring Maximum Threshold
     bool recording;                 //!< Set to true when Video Encoders are recording
     bool screenshot_cam1;           //!< Set to true when screenshotting cam1
     bool screenshot_cam2;           //!< Set to true when screenshotting cam2
+    bool screenshot_cam3;           //!< Set to true when screenshotting thirdscreen
+    bool monochrome;
+    double opacity_val;
+    int region_x_WL;
+    int region_y_WL;
+    int region_x_NIR;
+    int region_y_NIR;
 };
 
 #endif // MULTICHANNELVIEWER_H

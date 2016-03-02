@@ -84,6 +84,8 @@ public:
      */
     tPvFrame* getFramePtr();
 
+    tPvHandle* getHandle();
+
     /**
      * @brief Assigns the Camera Handle to this object's Handle.
      *

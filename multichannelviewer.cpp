@@ -20,9 +20,18 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
     recording = false;
     screenshot_cam1 = false;
     screenshot_cam2 = false;
+    monochrome = false;
+    opacity_val = 0.1;
     ui->minVal->setRange(0,4095);
     ui->maxVal->setRange(0,4095);
-    ui->maxVal->setValue(4000);
+    ui->minVal->setValue(10);
+    ui->maxVal->setValue(200);
+
+    Cam1_Image = new QImage(WIDTH, HEIGHT, QImage::Format_RGB888);
+    Cam2_Image = new QImage(WIDTH, HEIGHT, QImage::Format_RGB888);
+
+    Cam1_Image->fill(0);
+    Cam2_Image->fill(0);
 
     if (this->InitializePv() && this->ConnectToCam()) //!< Executes if PvAPI initializes and Cameras connect successfully
     {
@@ -142,6 +151,8 @@ bool MultiChannelViewer::ConnectToCam()
 void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
 {
     tPvFrame* FramePtr1 = cam->getFramePtr();
+    tPvHandle* CamHandle = cam->getHandle();
+    //PvAttrUint32Set(*CamHandle, "ExposureValue", 15000);
 
     unsigned long line_padding = ULONG_PADDING(FramePtr1->Width*3);
     unsigned long line_size = (FramePtr1->Width*3) + line_padding;
@@ -173,6 +184,8 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
     ui->cam_1->setScaledContents(true);
     ui->cam_1->setPixmap(QPixmap::fromImage(imgFrame));
     ui->cam_1->show();
+
+    *Cam1_Image = imgFrame;
     qApp->processEvents();
 
     if (screenshot_cam1)
@@ -181,8 +194,10 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
         timestamp.replace(QString(" "), QString("_"));
         timestamp.replace(QString(":"), QString("-"));
         timestamp.append("_WL.png");
+        //timestamp = QString("/Screenshot/") + timestamp;
 
         QFile file(timestamp);
+        //QFile file(QCoreApplication::applicationDirPath() + "/Screenshot/" + timestamp);
         file.open(QIODevice::WriteOnly);
         imgFrame.save(&file, "PNG");
         file.close();
@@ -198,6 +213,8 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
         Video1.WriteFrame(mirror_buffer);
     }
 
+    renderFrame_Cam3();
+
     delete[] buffer;
     emit renderFrame_Cam1_Done();
 }
@@ -205,6 +222,8 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
 void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 {
     tPvFrame* FramePtr1 = cam->getFramePtr();
+    tPvHandle* CamHandle = cam->getHandle();
+    PvAttrUint32Set(*CamHandle, "ExposureValue", 500000);
 
 
     //unsigned short* rawPtr = (unsigned short)FramePtr1->ImageBuffer;
@@ -222,6 +241,7 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
     thresh4 = thresh3 + space;
     thresh5 = thresh4 + space;
     thresh6 = thresh5 + space;
+
 
     unsigned char* buffer = new unsigned char[3*FramePtr1->Height*FramePtr1->Width];
     unsigned char* bufferPtr = buffer;
@@ -298,6 +318,8 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
     ui->cam_2->setScaledContents(true);
     ui->cam_2->setPixmap(QPixmap::fromImage(imgFrame));
     ui->cam_2->show();
+
+    *Cam2_Image = imgFrame;
     qApp->processEvents();
 
     if (screenshot_cam2)
@@ -319,9 +341,65 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
         Video2.WriteFrame(buffer);
     }
 
+    renderFrame_Cam3();
+
     delete[] buffer;
 
     emit renderFrame_Cam2_Done();
+}
+
+void MultiChannelViewer::renderFrame_Cam3()
+{
+    if (monochrome)
+    {
+        *Cam1_Image = Cam1_Image->convertToFormat(QImage::Format_RGB32);
+
+        unsigned int *data = (unsigned int*)Cam1_Image->bits();
+        int pixelCount = Cam1_Image->width() * Cam1_Image->height();
+
+        // Convert each pixel to grayscale
+        for(int i = 0; i < pixelCount; ++i)
+        {
+           int val = qGray(*data);
+           *data = qRgba(val, val, val, qAlpha(*data));
+           //*data = qRgb(val, val, val);
+           ++data;
+        }
+    }
+
+    QPixmap imgFrame(Cam1_Image->size());
+    QPainter p(&imgFrame);
+
+    p.drawImage(QPoint(0,0), *Cam1_Image);
+    p.setOpacity(opacity_val);
+    p.drawImage(QPoint(0,0), *Cam2_Image);
+    p.end();
+
+    ui->cam_3->setScaledContents(true);
+    ui->cam_3->setPixmap(imgFrame);
+    ui->cam_3->show();
+    qApp->processEvents();
+
+    if (screenshot_cam3)
+    {
+        QString timestamp = QDateTime::currentDateTime().toString();
+        timestamp.replace(QString(" "), QString("_"));
+        timestamp.replace(QString(":"), QString("-"));
+        timestamp.append("_WL+NIR.png");
+
+        QFile file(timestamp);
+        file.open(QIODevice::WriteOnly);
+        imgFrame.save(&file, "PNG");
+        file.close();
+        screenshot_cam3 = false;
+    }
+
+    if (recording)
+    {
+        QImage RGB24 = imgFrame.toImage();
+        RGB24 = RGB24.convertToFormat(QImage::Format_RGB888);
+        Video3.WriteFrame(RGB24.bits());
+    }
 }
 
 void MultiChannelViewer::closeEvent(QCloseEvent *event)
@@ -330,6 +408,7 @@ void MultiChannelViewer::closeEvent(QCloseEvent *event)
     {
         Video1.CloseVideo();
         Video2.CloseVideo();
+        Video3.CloseVideo();
     }
 
     thread1.quit();
@@ -345,75 +424,109 @@ void MultiChannelViewer::closeEvent(QCloseEvent *event)
 
 void MultiChannelViewer::on_minVal_valueChanged(int value)
 {
-    if (value < this->maxVal - 200)
+    if (value < this->maxVal - 150)
     {
         this->minVal = value;
-        ui->minVal_label->setText(QString::number(value));
+        ui->minVal_spinbox->setValue(value);
+
     }
     else
     {
-        this->minVal = this->maxVal - 200;
-        ui->minVal_label->setText(QString::number(this->maxVal - 200));
+        this->minVal = this->maxVal - 150;
+        ui->minVal_spinbox->setValue(this->maxVal - 150);
     }
 }
 
 void MultiChannelViewer::on_maxVal_valueChanged(int value)
 {
-    if (value > this->minVal + 200)
+    if (value > this->minVal + 150)
     {
         this->maxVal = value;
-        ui->maxVal_label->setText(QString::number(value));
+        ui->maxVal_spinbox->setValue(value);
     }
     else
     {
-        this->maxVal = this->minVal + 200;
-        ui->maxVal_label->setText(QString::number(this->minVal + 200));
+        this->maxVal = this->minVal + 150;
+        ui->maxVal_spinbox->setValue(this->minVal + 150);
+    }
+}
+
+void MultiChannelViewer::on_minVal_spinbox_valueChanged(int arg1)
+{
+    if (arg1 < this->maxVal - 150)
+    {
+        this->minVal = arg1;
+        ui->minVal_spinbox->setValue(arg1);
+        ui->minVal->setValue(arg1);
+    }
+    else
+    {
+        this->minVal = this->maxVal - 150;
+        ui->minVal_spinbox->setValue(this->maxVal - 150);
+        ui->minVal->setValue(this->maxVal - 150);
+    }
+}
+
+void MultiChannelViewer::on_maxVal_spinbox_valueChanged(int arg1)
+{
+    if (arg1 > this->minVal + 150)
+    {
+        this->maxVal = arg1;
+        ui->maxVal_spinbox->setValue(arg1);
+        ui->maxVal->setValue(arg1);
+    }
+    else
+    {
+        this->maxVal = this->minVal + 150;
+        ui->maxVal_spinbox->setValue(this->minVal + 150);
+        ui->maxVal->setValue(this->minVal + 150);
     }
 }
 
 void MultiChannelViewer::on_minVal_sliderMoved(int position)
 {
-    if (position > this->maxVal - 200)
-        ui->minVal_label->setText(QString::number(position));
+    if (position > this->maxVal - 150)
+    {
+        ui->minVal_spinbox->setValue(position);
+    }
 }
 
 void MultiChannelViewer::on_maxVal_sliderMoved(int position)
 {
-    if (position > this->minVal + 200)
-        ui->maxVal_label->setText(QString::number(position));
+    if (position > this->minVal + 150)
+    {
+        ui->maxVal_spinbox->setValue(position);
+    }
 }
 
 void MultiChannelViewer::on_Record_toggled(bool checked)
 {
     if (checked)
     {
-        QString timestamp_filename_WL;
-        QString timestamp_WL = QDateTime::currentDateTime().toString();
-        timestamp_filename_WL = timestamp_WL + QString::fromLatin1("_WL") + QString(".avi");
-        for(int i = 0; i < timestamp_filename_WL.size(); i++)
-        {
-            if (timestamp_filename_WL[i].toLatin1() == ' ')
-                timestamp_filename_WL[i] = QChar::fromLatin1('_');
-            if (timestamp_filename_WL[i].toLatin1() == ':')
-                timestamp_filename_WL[i] = QChar::fromLatin1('-');
-        }
+        QString timestamp_filename_WL = QDateTime::currentDateTime().toString();
+        timestamp_filename_WL.append("_WL.avi");
+        timestamp_filename_WL.replace(QString(" "), QString("_"));
+        timestamp_filename_WL.replace(QString(":"), QString("-"));
+        timestamp_filename_WL = QString("Video/") + timestamp_filename_WL;
 
-        QString timestamp_filename_NIR;
-        QString timestamp_NIR = QDateTime::currentDateTime().toString();
-        timestamp_filename_NIR = timestamp_NIR + QString::fromLatin1("_NIR") + QString(".avi");
-        for(int i = 0; i < timestamp_filename_NIR.size(); i++)
-        {
-            if (timestamp_filename_NIR[i].toLatin1() == ' ')
-                timestamp_filename_NIR[i] = QChar::fromLatin1('_');
-            if (timestamp_filename_NIR[i].toLatin1() == ':')
-                timestamp_filename_NIR[i] = QChar::fromLatin1('-');
-        }
+        QString timestamp_filename_NIR = QDateTime::currentDateTime().toString();
+        timestamp_filename_NIR.append("_NIR.avi");
+        timestamp_filename_NIR.replace(QString(" "), QString("_"));
+        timestamp_filename_NIR.replace(QString(":"), QString("-"));
+
+        QString timestamp_filename_WL_NIR = QDateTime::currentDateTime().toString();
+        timestamp_filename_WL_NIR.append("_WL+NIR.avi");
+        timestamp_filename_WL_NIR.replace(QString(" "), QString("_"));
+        timestamp_filename_WL_NIR.replace(QString(":"), QString("-"));
 
         char* filename_WL = (char*) timestamp_filename_WL.toStdString().c_str();
         this->Video1.SetupVideo(filename_WL, 640, 480, 15, 2, 750000); //bitrate = 40000000
 
         char* filename_NIR = (char*) timestamp_filename_NIR.toStdString().c_str();
         this->Video2.SetupVideo(filename_NIR, 640, 480, 15, 2, 750000);
+
+        char* filename_WL_NIR = (char*) timestamp_filename_WL_NIR.toStdString().c_str();
+        this->Video3.SetupVideo(filename_WL_NIR, 640, 480, 15, 2, 750000);
 
         recording = true;
     }
@@ -422,6 +535,7 @@ void MultiChannelViewer::on_Record_toggled(bool checked)
         recording = false;
         Video1.CloseVideo();
         Video2.CloseVideo();
+        Video3.CloseVideo();
     }
 }
 
@@ -429,4 +543,38 @@ void MultiChannelViewer::on_Screenshot_clicked()
 {
     this->screenshot_cam1 = true;
     this->screenshot_cam2 = true;
+    this->screenshot_cam3 = true;
+}
+
+void MultiChannelViewer::on_checkBox_stateChanged(int arg1)
+{
+    if (arg1 == Qt::Checked)
+        this->monochrome = true;
+    if (arg1 == Qt::Unchecked)
+        this->monochrome = false;
+}
+
+void MultiChannelViewer::on_opacitySlider_valueChanged(int value)
+{
+    opacity_val = static_cast<double>(value) / 10.0;
+}
+
+void MultiChannelViewer::on_RegionX_WL_valueChanged(int arg1)
+{
+    PvAttrUint32Set(*(Cam1.getHandle()), "RegionX", arg1);
+}
+
+void MultiChannelViewer::on_RegionY_WL_valueChanged(int arg1)
+{
+    PvAttrUint32Set(*(Cam1.getHandle()), "RegionY", arg1);
+}
+
+void MultiChannelViewer::on_RegionX_NIR_valueChanged(int arg1)
+{
+    PvAttrUint32Set(*(Cam2.getHandle()), "RegionX", arg1);
+}
+
+void MultiChannelViewer::on_RegionY_NIR_valueChanged(int arg1)
+{
+    PvAttrUint32Set(*(Cam2.getHandle()), "RegionY", arg1);
 }
