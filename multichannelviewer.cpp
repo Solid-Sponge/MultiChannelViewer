@@ -558,3 +558,23 @@ void MultiChannelViewer::on_opacitySlider_valueChanged(int value)
 {
     opacity_val = static_cast<double>(value) / 10.0;
 }
+
+void MultiChannelViewer::on_RegionX_WL_valueChanged(int arg1)
+{
+    PvAttrUint32Set(*(Cam1.getHandle()), "RegionX", arg1);
+}
+
+void MultiChannelViewer::on_RegionY_WL_valueChanged(int arg1)
+{
+    PvAttrUint32Set(*(Cam1.getHandle()), "RegionY", arg1);
+}
+
+void MultiChannelViewer::on_RegionX_NIR_valueChanged(int arg1)
+{
+    PvAttrUint32Set(*(Cam2.getHandle()), "RegionX", arg1);
+}
+
+void MultiChannelViewer::on_RegionY_NIR_valueChanged(int arg1)
+{
+    PvAttrUint32Set(*(Cam2.getHandle()), "RegionY", arg1);
+}

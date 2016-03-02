@@ -62,8 +62,8 @@ void Camera::captureSetup()
 
         PvAttrUint32Set(this->Handle, "Width", 640);
         PvAttrUint32Set(this->Handle, "Height", 480);
-        PvAttrUint32Set(this->Handle, "RegionX", 450);  //x = 400
-        PvAttrUint32Set(this->Handle, "RegionY", 180);  //y = 250
+        PvAttrUint32Set(this->Handle, "RegionX", 388);  //x = 400
+        PvAttrUint32Set(this->Handle, "RegionY", 250);  //y = 250
     }
     else
     {

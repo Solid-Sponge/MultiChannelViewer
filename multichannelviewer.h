@@ -171,6 +171,14 @@ private slots:
 
     void on_opacitySlider_valueChanged(int value);
 
+    void on_RegionX_WL_valueChanged(int arg1);
+
+    void on_RegionY_WL_valueChanged(int arg1);
+
+    void on_RegionX_NIR_valueChanged(int arg1);
+
+    void on_RegionY_NIR_valueChanged(int arg1);
+
 private:
     Ui::MultiChannelViewer *ui;
     Camera Cam1;                    //!< White Light Camera
@@ -190,8 +198,10 @@ private:
     bool screenshot_cam3;           //!< Set to true when screenshotting thirdscreen
     bool monochrome;
     double opacity_val;
-    int region_x;
-    int region_y;
+    int region_x_WL;
+    int region_y_WL;
+    int region_x_NIR;
+    int region_y_NIR;
 };
 
 #endif // MULTICHANNELVIEWER_H
