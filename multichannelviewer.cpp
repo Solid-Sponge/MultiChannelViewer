@@ -150,6 +150,7 @@ bool MultiChannelViewer::ConnectToCam()
 
 void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
 {
+    clock_t time = clock();
     tPvFrame* FramePtr1 = cam->getFramePtr();
     tPvHandle* CamHandle = cam->getHandle();
     //PvAttrUint32Set(*CamHandle, "ExposureValue", 15000);
@@ -188,6 +189,10 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
     *Cam1_Image = imgFrame;
     qApp->processEvents();
 
+    time = clock() - time;
+    int ms = double(time) / CLOCKS_PER_SEC * 1000.0;
+    std::cout << "Time elapsed: " << ms << " ms" << std::endl;
+
     if (screenshot_cam1)
     {
         QString timestamp = QDateTime::currentDateTime().toString();
@@ -221,6 +226,7 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
 
 void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 {
+
     tPvFrame* FramePtr1 = cam->getFramePtr();
     tPvHandle* CamHandle = cam->getHandle();
     PvAttrUint32Set(*CamHandle, "ExposureValue", 500000);
@@ -319,7 +325,12 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
     ui->cam_2->setPixmap(QPixmap::fromImage(imgFrame));
     ui->cam_2->show();
 
+
+
     *Cam2_Image = imgFrame;
+   // Cam2_Image_Raw = new unsigned char[FramePtr1->ImageBufferSize];
+    //std::memcpy(Cam2_Image_Raw, FramePtr1->ImageBuffer, FramePtr1->ImageBufferSize);
+
     qApp->processEvents();
 
     if (screenshot_cam2)
@@ -343,6 +354,7 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 
     renderFrame_Cam3();
 
+    //delete[] Cam2_Image_Raw;
     delete[] buffer;
 
     emit renderFrame_Cam2_Done();
@@ -367,12 +379,35 @@ void MultiChannelViewer::renderFrame_Cam3()
         }
     }
 
+    unsigned char* cam2_data = Cam2_Image->bits();
+    QImage Cam2_Image_transparency = Cam2_Image->convertToFormat(QImage::Format_ARGB32);
+    QRgb transparent_pixel = qRgba(0,0,0,0);
+
+    for (int i = 0; i < Cam2_Image->height(); i++)
+    {
+        for (int j = 0; j < Cam2_Image->width(); j++)
+        {
+            if (cam2_data[0] == 0 && cam2_data[1] == 0 && cam2_data[2] == 0)
+            {
+                Cam2_Image_transparency.setPixel(j,i,transparent_pixel);
+            }
+            else
+            {
+                QRgb pixel = qRgba(cam2_data[0],cam2_data[1],cam2_data[2],255*opacity_val);
+                Cam2_Image_transparency.setPixel(j,i,pixel);
+            }
+            cam2_data = cam2_data + 3;
+        }
+    }
+
+
     QPixmap imgFrame(Cam1_Image->size());
     QPainter p(&imgFrame);
 
     p.drawImage(QPoint(0,0), *Cam1_Image);
-    p.setOpacity(opacity_val);
-    p.drawImage(QPoint(0,0), *Cam2_Image);
+    //p.setOpacity(opacity_val);
+    //p.drawImage(QPoint(0,0), *Cam2_Image);
+    p.drawImage(QPoint(0,0), Cam2_Image_transparency);
     p.end();
 
     ui->cam_3->setScaledContents(true);

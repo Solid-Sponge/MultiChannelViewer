@@ -78,7 +78,7 @@ void Camera::captureSetup()
         PvAttrUint32Set(this->Handle, "RegionX", 450);
         PvAttrUint32Set(this->Handle, "RegionY", 180);
 
-        PvAttrUint32Set(this->Handle, "ExposureAutoMax", 333334);
+        PvAttrUint32Set(this->Handle, "ExposureAutoMax", 60000);
         //PvAttrEnumSet(this->Handle, "ExposureMode", "Manual");
         //PvAttrUint32Set(this->Handle, "ExposureValue", 15000);
 
@@ -133,6 +133,7 @@ void Camera::captureEnd()
 
 void Camera::capture()
 {
+
     PvCommandRun(this->Handle, "AcquisitionStart");
     //PvCaptureQueueClear(this->Handle);
 

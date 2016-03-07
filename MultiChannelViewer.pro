@@ -11,6 +11,7 @@ TARGET = MultiChannelViewer
 TEMPLATE = app
 
 
+
 SOURCES += main.cpp\
         multichannelviewer.cpp \
     camera.cpp \
