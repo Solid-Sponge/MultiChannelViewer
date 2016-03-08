@@ -27,6 +27,7 @@
 
 #define WIDTH 640
 #define HEIGHT 480
+#define AUTOEXPOSURE_CUTOFF 3000.0
 
 #define _OSX
 #define _x64
@@ -38,9 +39,11 @@
 #include <QMessageBox>
 #include <QLabel>
 #include <QThread>
+#include <QtConcurrent/QtConcurrent>
 #include <QDateTime>
 #include <QImage>
 #include <QPainter>
+#include <QMutex>
 #include <iostream>
 #include <PvApi.h>
 #include <PvRegIo.h>
@@ -95,6 +98,8 @@ public:
      * @return True if everything works, false otherwise
      */
     bool ConnectToCam();    //!< TODO: Implement a way of discriminating between NIR and WL cams
+
+    void AutoExposure();
 
 
 signals:
@@ -191,6 +196,9 @@ private:
     QThread thread1;                //!< WL Cam streaming thread
     QThread thread2;                //!< NIR Cam streaming thread
 
+    QMutex Mutex1;                  //!< WL Cam Mutex
+    QMutex Mutex2;                  //!< NIR Cam Mutex
+
     FFMPEG Video1;                  //!< WL Video Encoder
     FFMPEG Video2;                  //!< NIR Video Encoder
     FFMPEG Video3;                  //!< WL+NIR Video Encoder
@@ -205,6 +213,8 @@ private:
 
     bool monochrome;
     double opacity_val;
+    unsigned int exposure_WL;
+    unsigned int exposure_NIR;
 
     int region_x_WL;
     int region_y_WL;

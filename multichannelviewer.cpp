@@ -27,8 +27,12 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
     ui->minVal->setValue(10);
     ui->maxVal->setValue(200);
 
+    this->exposure_WL = 60000;
+    this->exposure_NIR = 500000;
+
     Cam1_Image = new QImage(WIDTH, HEIGHT, QImage::Format_RGB888);
     Cam2_Image = new QImage(WIDTH, HEIGHT, QImage::Format_RGB888);
+    Cam2_Image_Raw = new unsigned char[HEIGHT*WIDTH*2];
 
     Cam1_Image->fill(0);
     Cam2_Image->fill(0);
@@ -147,10 +151,113 @@ bool MultiChannelViewer::ConnectToCam()
     return false;
 }
 
+void MultiChannelViewer::AutoExposure()
+{
+    unsigned short* Image_WL_data = new unsigned short[HEIGHT*WIDTH];
+    unsigned short* Image_NIR_data = new unsigned short[HEIGHT*WIDTH];
+
+    Mutex1.lock();
+    QImage Image_WL = Cam1_Image->copy();
+    Mutex1.unlock();
+
+    Mutex2.lock();
+    //QImage Image_NIR = Cam2_Image->copy();
+    std::memcpy(Image_NIR_data, Cam2_Image_Raw, HEIGHT*WIDTH*2);
+    Mutex2.unlock();
+
+    unsigned char* Image_WL_Original = Image_WL.bits();
+    for (int i = 0; i < Image_WL.height()*Image_WL.width(); i++)
+    {
+        double r = Image_WL_Original[0];
+        double g = Image_WL_Original[1];
+        double b = Image_WL_Original[2];
+        Image_WL_data[i] = (0.21*r + 0.72*g + 0.07*b)*16;
+        Image_WL_Original = Image_WL_Original + 3;
+    }
+
+    int Histogram_WL[4096] = {0};
+    int Histogram_NIR[4096] = {0};
+    int pixel_count = 0;
+
+    for (int i = 0; i < Image_WL.height()*Image_WL.width(); i++)
+    {
+        if (Image_WL_data[i] > 32)
+        {
+            Histogram_WL[Image_WL_data[i]]++;
+            Histogram_NIR[Image_NIR_data[i]]++;
+            pixel_count++;
+        }
+    }
+
+    int Histogram_WL_integral = 0;
+    int Histogram_NIR_integral = 0;
+    int Histogram_WL_95percent_cutoff;
+    int Histogram_NIR_95percent_cutoff;
+
+    for (int i = 0; i < 4096; i++)
+    {
+        Histogram_WL_integral += Histogram_WL[i];
+        if (Histogram_WL_integral > 0.95*pixel_count)
+        {
+            Histogram_WL_95percent_cutoff = i;
+            break;
+        }
+    }
+    for (int i = 0; i < 4096; i++)
+    {
+        Histogram_NIR_integral += Histogram_NIR[i];
+        if (Histogram_NIR_integral > 0.95*pixel_count)
+        {
+            Histogram_NIR_95percent_cutoff = i;
+            break;
+        }
+    }
+    double exposure_WL_multiplier =
+            1 - ((double) Histogram_WL_95percent_cutoff - AUTOEXPOSURE_CUTOFF)/AUTOEXPOSURE_CUTOFF;
+    double exposure_NIR_multiplier =
+            1 - ((double) Histogram_NIR_95percent_cutoff - AUTOEXPOSURE_CUTOFF)/AUTOEXPOSURE_CUTOFF;
+
+    if (exposure_WL_multiplier > 1.3)
+        exposure_WL_multiplier = 1.3;
+    if (exposure_WL_multiplier < 0.7)
+        exposure_WL_multiplier = 0.7;
+
+    if (exposure_NIR_multiplier > 1.3)
+        exposure_NIR_multiplier = 1.3;
+    if (exposure_NIR_multiplier < 0.7)
+        exposure_NIR_multiplier = 0.7;
+
+    unsigned int new_exposure_WL = (double) this->exposure_WL*exposure_WL_multiplier;
+    unsigned int new_exposure_NIR = (double) this->exposure_NIR*exposure_NIR_multiplier;
+
+    if (new_exposure_WL < 100)
+        new_exposure_WL = 100;
+    if (new_exposure_WL > 300000)
+        new_exposure_WL = 300000;
+    //if (new_exposure_WL > 550000)
+    //    new_exposure_WL = 550000;
+
+    if (new_exposure_NIR < 100)
+        new_exposure_NIR = 100;
+    if (new_exposure_NIR > 550000)
+        new_exposure_NIR = 550000;
+
+    this->exposure_WL = new_exposure_WL;
+    this->exposure_NIR = new_exposure_NIR;
+
+    tPvHandle* Cam1_Handle = Cam1.getHandle();
+    tPvHandle* Cam2_Handle = Cam2.getHandle();
+    PvAttrUint32Set(Cam1_Handle, "ExposureValue", this->exposure_WL);
+    PvAttrUint32Set(Cam2_Handle, "ExposureValue", this->exposure_NIR);
+
+    //if (new_exposure_WL)
+    delete[] Image_WL_data;
+    delete[] Image_NIR_data;
+}
+
 
 void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
 {
-    clock_t time = clock();
     tPvFrame* FramePtr1 = cam->getFramePtr();
     tPvHandle* CamHandle = cam->getHandle();
     //PvAttrUint32Set(*CamHandle, "ExposureValue", 15000);
@@ -186,12 +293,10 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
     ui->cam_1->setPixmap(QPixmap::fromImage(imgFrame));
     ui->cam_1->show();
 
+    Mutex1.lock();
     *Cam1_Image = imgFrame;
+    Mutex1.unlock();
     qApp->processEvents();
-
-    time = clock() - time;
-    int ms = double(time) / CLOCKS_PER_SEC * 1000.0;
-    std::cout << "Time elapsed: " << ms << " ms" << std::endl;
 
     if (screenshot_cam1)
     {
@@ -326,10 +431,13 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
     ui->cam_2->show();
 
 
-
+   // Mutex2.lock();
     *Cam2_Image = imgFrame;
-   // Cam2_Image_Raw = new unsigned char[FramePtr1->ImageBufferSize];
-    //std::memcpy(Cam2_Image_Raw, FramePtr1->ImageBuffer, FramePtr1->ImageBufferSize);
+  //  Mutex2.unlock();
+
+    Mutex2.lock();
+    std::memcpy(Cam2_Image_Raw, FramePtr1->ImageBuffer, FramePtr1->ImageBufferSize);
+    Mutex2.unlock();
 
     qApp->processEvents();
 
@@ -352,9 +460,9 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
         Video2.WriteFrame(buffer);
     }
 
-    renderFrame_Cam3();
+    //renderFrame_Cam3();
 
-    //delete[] Cam2_Image_Raw;
+
     delete[] buffer;
 
     emit renderFrame_Cam2_Done();
@@ -362,6 +470,7 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 
 void MultiChannelViewer::renderFrame_Cam3()
 {
+    Mutex1.lock();
     if (monochrome)
     {
         *Cam1_Image = Cam1_Image->convertToFormat(QImage::Format_RGB32);
@@ -379,6 +488,12 @@ void MultiChannelViewer::renderFrame_Cam3()
         }
     }
 
+    QPixmap imgFrame(Cam1_Image->size());
+    QPainter p(&imgFrame);
+    p.drawImage(QPoint(0,0), *Cam1_Image);
+    Mutex1.unlock();
+
+    Mutex2.lock();
     unsigned char* cam2_data = Cam2_Image->bits();
     QImage Cam2_Image_transparency = Cam2_Image->convertToFormat(QImage::Format_ARGB32);
     QRgb transparent_pixel = qRgba(0,0,0,0);
@@ -399,12 +514,8 @@ void MultiChannelViewer::renderFrame_Cam3()
             cam2_data = cam2_data + 3;
         }
     }
+    Mutex2.unlock();
 
-
-    QPixmap imgFrame(Cam1_Image->size());
-    QPainter p(&imgFrame);
-
-    p.drawImage(QPoint(0,0), *Cam1_Image);
     //p.setOpacity(opacity_val);
     //p.drawImage(QPoint(0,0), *Cam2_Image);
     p.drawImage(QPoint(0,0), Cam2_Image_transparency);
@@ -413,7 +524,10 @@ void MultiChannelViewer::renderFrame_Cam3()
     ui->cam_3->setScaledContents(true);
     ui->cam_3->setPixmap(imgFrame);
     ui->cam_3->show();
+
     qApp->processEvents();
+
+    QtConcurrent::run(this, &MultiChannelViewer::AutoExposure);
 
     if (screenshot_cam3)
     {
@@ -446,11 +560,14 @@ void MultiChannelViewer::closeEvent(QCloseEvent *event)
         Video3.CloseVideo();
     }
 
+    QThread::sleep(1);
+
     thread1.quit();
     thread2.quit();
 
     Cam1.captureEnd();
     Cam2.captureEnd();
+    delete[] Cam2_Image_Raw;
 
     PvUnInitialize();
     QApplication::exit(0);
@@ -459,7 +576,7 @@ void MultiChannelViewer::closeEvent(QCloseEvent *event)
 
 void MultiChannelViewer::on_minVal_valueChanged(int value)
 {
-    if (value < this->maxVal - 150)
+    if (value < this->maxVal - 100)
     {
         this->minVal = value;
         ui->minVal_spinbox->setValue(value);
@@ -467,28 +584,28 @@ void MultiChannelViewer::on_minVal_valueChanged(int value)
     }
     else
     {
-        this->minVal = this->maxVal - 150;
-        ui->minVal_spinbox->setValue(this->maxVal - 150);
+        this->minVal = this->maxVal - 100;
+        ui->minVal_spinbox->setValue(this->maxVal - 100);
     }
 }
 
 void MultiChannelViewer::on_maxVal_valueChanged(int value)
 {
-    if (value > this->minVal + 150)
+    if (value > this->minVal + 100)
     {
         this->maxVal = value;
         ui->maxVal_spinbox->setValue(value);
     }
     else
     {
-        this->maxVal = this->minVal + 150;
-        ui->maxVal_spinbox->setValue(this->minVal + 150);
+        this->maxVal = this->minVal + 100;
+        ui->maxVal_spinbox->setValue(this->minVal + 100);
     }
 }
 
 void MultiChannelViewer::on_minVal_spinbox_valueChanged(int arg1)
 {
-    if (arg1 < this->maxVal - 150)
+    if (arg1 < this->maxVal - 100)
     {
         this->minVal = arg1;
         ui->minVal_spinbox->setValue(arg1);
@@ -496,15 +613,15 @@ void MultiChannelViewer::on_minVal_spinbox_valueChanged(int arg1)
     }
     else
     {
-        this->minVal = this->maxVal - 150;
-        ui->minVal_spinbox->setValue(this->maxVal - 150);
-        ui->minVal->setValue(this->maxVal - 150);
+        this->minVal = this->maxVal - 100;
+        ui->minVal_spinbox->setValue(this->maxVal - 100);
+        ui->minVal->setValue(this->maxVal - 100);
     }
 }
 
 void MultiChannelViewer::on_maxVal_spinbox_valueChanged(int arg1)
 {
-    if (arg1 > this->minVal + 150)
+    if (arg1 > this->minVal + 100)
     {
         this->maxVal = arg1;
         ui->maxVal_spinbox->setValue(arg1);
@@ -512,15 +629,15 @@ void MultiChannelViewer::on_maxVal_spinbox_valueChanged(int arg1)
     }
     else
     {
-        this->maxVal = this->minVal + 150;
-        ui->maxVal_spinbox->setValue(this->minVal + 150);
-        ui->maxVal->setValue(this->minVal + 150);
+        this->maxVal = this->minVal + 100;
+        ui->maxVal_spinbox->setValue(this->minVal + 100);
+        ui->maxVal->setValue(this->minVal + 100);
     }
 }
 
 void MultiChannelViewer::on_minVal_sliderMoved(int position)
 {
-    if (position > this->maxVal - 150)
+    if (position > this->maxVal - 100)
     {
         ui->minVal_spinbox->setValue(position);
     }
@@ -528,7 +645,7 @@ void MultiChannelViewer::on_minVal_sliderMoved(int position)
 
 void MultiChannelViewer::on_maxVal_sliderMoved(int position)
 {
-    if (position > this->minVal + 150)
+    if (position > this->minVal + 100)
     {
         ui->maxVal_spinbox->setValue(position);
     }
