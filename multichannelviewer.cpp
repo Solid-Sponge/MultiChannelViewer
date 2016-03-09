@@ -26,16 +26,15 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
     ui->maxVal->setRange(0,4095);
     ui->minVal->setValue(10);
     ui->maxVal->setValue(200);
-
-    this->exposure_WL = 60000;
-    this->exposure_NIR = 500000;
-
+    autoexpose = true;
+    exposure_WL = 60000;
+    exposure_NIR = 500000;
     Cam1_Image = new QImage(WIDTH, HEIGHT, QImage::Format_RGB888);
     Cam2_Image = new QImage(WIDTH, HEIGHT, QImage::Format_RGB888);
     Cam2_Image_Raw = new unsigned char[HEIGHT*WIDTH*2];
-
     Cam1_Image->fill(0);
     Cam2_Image->fill(0);
+
 
     if (this->InitializePv() && this->ConnectToCam()) //!< Executes if PvAPI initializes and Cameras connect successfully
     {
@@ -124,8 +123,7 @@ bool MultiChannelViewer::ConnectToCam()
     tPvCameraInfoEx   info[2];
     unsigned long     numCameras;
     numCameras = PvCameraListEx(info, 2, NULL, sizeof(tPvCameraInfoEx));
-    // Open the first two cameras found, if it’s not already open. (See
-    // function reference for PvCameraOpen for a more complex example.)
+    // Open the first two cameras found, if it’s not already open.
     if ((numCameras >= 1) && (info[0].PermittedAccess & ePvAccessMaster) && (info[1].PermittedAccess & ePvAccessMaster))
     {
         Cam1.setID(info[0].UniqueId);
@@ -153,6 +151,59 @@ bool MultiChannelViewer::ConnectToCam()
 
 void MultiChannelViewer::AutoExposure()
 {
+    /// The algorithm used here is relatively complex, and functions as a self-correcting algorithm.
+    /// The first step is to acquire the latest two frames from the cameras. Since the latest frame
+    /// is constantly updating, mutexes are put in place to prevent the data from updating until the
+    /// frame data has been copied to local storage (freeing access to the lastest frame data as early
+    /// as possible)
+    ///
+    /// Afterwards, the next step is to convert both frames into a quantifiable scalar format for comparison.
+    /// The easiest way to do that is by comparing their intensities. The NIR image is in a 16-bit Monochrome
+    /// format ranging from [0-4096], so each pixel corresponds directly to one intensity value.
+    /// The WL image however, is in a 24-bit RGB format (8 bits per color) ranging from [0-255] each channel.
+    /// The WL image is converted into 8-bit Monochrome format [0-256] by taking a weighted sum from each
+    /// channel, keeping in mind that the human eye sees green better than red, which it sees better than blue.
+    /// However, the NIR image has a higher precision (16-bit) than the new WL image (8-bit). The WL image is
+    /// expanded to a domain of [0-4096] (16-bit) by multiplying each individual pixel by 16.
+    ///
+    /// **** Dev note: In hindsight, I'm not sure if expanding the domain is necessary. Might be removed ****
+    /// **** in future                                                                                   ****
+    ///
+    /// Once both images are in these formats, a histogram is generated for each image. This is implemented as
+    /// a simple array of 4096 elements, each index corresponding to a pixel intensity. It then goes through
+    /// each pixel and increments the value at the index corresponding to the intensity value by one.
+    /// (Ex: A value of 2000 in a pixel, Histogram_WL[2000]++)
+    ///
+    /// There's only a slight catch. When the endoscope is placed on the camera, the corners of the camera
+    /// are blocked, as the endoscope has a tiny viewing space. In order to avoid counting those pixels, a
+    /// mask is implemented. This mask is really simple, as it just ignores any pixels with intensities less
+    /// than 32 (under the assumption that WL signal is readily available and any really low signal tends to
+    /// correspond with the corners of the image). It also keeps track of the amount of pixels in the frame
+    /// that correspond to actual signal data (in pixel_count), as opposed to corner pixels.
+    ///
+    /// As far as the NIR cam is concerned, the camera is constantly starved for signals, and the ability
+    /// to distinguish between the corners of the camera and the signal itself is severely diminished as
+    /// a result. The easiest remedy is to just borrow the same mask from the WL camera, under the assumption
+    /// that both cameras are aligned. The histogram counts for the NIR take place in the same
+    /// conditional that checks for whether a pixel is a corner-pixel or a valid one.
+    ///
+    /// Finally, an integral (more of a sum) is taken across both histograms up to the 95% area.
+    /// What this means is each value in each index of the histogram is added up until this value reaches
+    /// 95% of the valid amount of pixels (not corner pixels). When 95% is reached, the index value is recorded
+    /// and the loop breaks. This value is known as the histogram cutoff. The reason 95% was chosen was to
+    /// eliminate outliers at the very top due to light reflection.
+    /// (Ex: Sum += Histogram[0].....Histogram[i] where i is the earliest index value that causes Sum
+    ///  to be equal to 95% of pixel_count)
+    ///
+    /// The histogram cutoff value is compared to a constant value predefined as AUTOEXPOSURE_CUTOFF.
+    /// The new exposure value is calculated based off this formula:
+    ///
+    ///     new_exposure = {1 - (Cutoff - AUTOEXPOSURE_CUTOFF)/ AUTOEXPOSURE_CUTOFF} * old_exposure
+    ///
+    /// Limits are set to ensure that the new exposure never increases or decreases by more than 30%.
+    /// Additional lower and upper bounds are set individually for the WL camera and NIR camera to ensure
+    /// that their corresponding exposure times never goes below or above certain values
+
     unsigned short* Image_WL_data = new unsigned short[HEIGHT*WIDTH];
     unsigned short* Image_NIR_data = new unsigned short[HEIGHT*WIDTH];
 
@@ -171,7 +222,7 @@ void MultiChannelViewer::AutoExposure()
         double r = Image_WL_Original[0];
         double g = Image_WL_Original[1];
         double b = Image_WL_Original[2];
-        Image_WL_data[i] = (0.21*r + 0.72*g + 0.07*b)*16;
+        Image_WL_data[i] = (0.21*r + 0.72*g + 0.07*b)*16; //!< Converts WL RGB 24-bit to 16-bit Mono
         Image_WL_Original = Image_WL_Original + 3;
     }
 
@@ -217,15 +268,15 @@ void MultiChannelViewer::AutoExposure()
     double exposure_NIR_multiplier =
             1 - ((double) Histogram_NIR_95percent_cutoff - AUTOEXPOSURE_CUTOFF)/AUTOEXPOSURE_CUTOFF;
 
-    if (exposure_WL_multiplier > 1.3)
-        exposure_WL_multiplier = 1.3;
-    if (exposure_WL_multiplier < 0.7)
-        exposure_WL_multiplier = 0.7;
+    if (exposure_WL_multiplier > 1.1)
+        exposure_WL_multiplier = 1.1;
+    if (exposure_WL_multiplier < 0.9)
+        exposure_WL_multiplier = 0.9;
 
-    if (exposure_NIR_multiplier > 1.3)
-        exposure_NIR_multiplier = 1.3;
-    if (exposure_NIR_multiplier < 0.7)
-        exposure_NIR_multiplier = 0.7;
+    if (exposure_NIR_multiplier > 1.1)
+        exposure_NIR_multiplier = 1.1;
+    if (exposure_NIR_multiplier < 0.9)
+        exposure_NIR_multiplier = 0.9;
 
     unsigned int new_exposure_WL = (double) this->exposure_WL*exposure_WL_multiplier;
     unsigned int new_exposure_NIR = (double) this->exposure_NIR*exposure_NIR_multiplier;
@@ -247,8 +298,8 @@ void MultiChannelViewer::AutoExposure()
 
     tPvHandle* Cam1_Handle = Cam1.getHandle();
     tPvHandle* Cam2_Handle = Cam2.getHandle();
-    PvAttrUint32Set(Cam1_Handle, "ExposureValue", this->exposure_WL);
-    PvAttrUint32Set(Cam2_Handle, "ExposureValue", this->exposure_NIR);
+    PvAttrUint32Set(*Cam1_Handle, "ExposureValue", this->exposure_WL);
+    PvAttrUint32Set(*Cam2_Handle, "ExposureValue", this->exposure_NIR);
 
     //if (new_exposure_WL)
     delete[] Image_WL_data;
@@ -268,11 +319,13 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
     unsigned char* buffer = new unsigned char[buffer_size];
     unsigned char* bufferPtr = buffer;
 
+    /// RGB frame data from camera is in Bayer 8-bit format. This function converts it to RGB 24-bit.
     PvUtilityColorInterpolate(FramePtr1, &buffer[0], &buffer[1], &buffer[2], 2, 0);
 
     QImage imgFrame(FramePtr1->Width, FramePtr1->Height, QImage::Format_RGB888);
 
-    /// Displays frame on main GUI
+    /// Sets corresponding pixels of imgFrame equal to the camera frame data.
+    /// Uses pointer arithmetic to traverse through the frame data.
     for (int i = 0; i < FramePtr1->Height; i++)
     {
         for (int j = 0; j < FramePtr1->Width; j++)
@@ -284,21 +337,21 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
             unsigned char b = *bufferPtr;   //!< B-Pixel
             bufferPtr++;
             QRgb color = qRgb(r, g, b);
-            //imgFrame.setPixel(FramePtr1->Width - j - 1, i, color); //!< Displays pixel with (r,g,b) at location j,i
-            imgFrame.setPixel(j, i, color);
+            imgFrame.setPixel(j, i, color); //!< Sets pixel with (r,g,b) at location j,i
         }
     }
-    imgFrame = imgFrame.mirrored(true, false);
+    imgFrame = imgFrame.mirrored(true, false);  //!< Flips WL image. Needed due to dicroic
     ui->cam_1->setScaledContents(true);
     ui->cam_1->setPixmap(QPixmap::fromImage(imgFrame));
-    ui->cam_1->show();
+    ui->cam_1->show(); //!< Displays image on Main GUI
 
     Mutex1.lock();
-    *Cam1_Image = imgFrame;
+    *Cam1_Image = imgFrame; //!< Updates latest frame. Mutex in place to prevent race conditions
     Mutex1.unlock();
-    qApp->processEvents();
 
-    if (screenshot_cam1)
+    qApp->processEvents(); //!< Process other GUI events
+
+    if (screenshot_cam1) //!< Takes screenshot
     {
         QString timestamp = QDateTime::currentDateTime().toString();
         timestamp.replace(QString(" "), QString("_"));
@@ -313,7 +366,7 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
         file.close();
         screenshot_cam1 = false;
     }
-    if (recording)
+    if (recording) //!< Starts recording
     {
         //unsigned char* mirror_buffer = new unsigned char[buffer_size];
         //unsigned char* mirror_buffer_Ptr = mirror_buffer;
@@ -323,23 +376,19 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
         Video1.WriteFrame(mirror_buffer);
     }
 
-    renderFrame_Cam3();
+    renderFrame_Cam3(); //!< Renders third screen on GUI
 
     delete[] buffer;
-    emit renderFrame_Cam1_Done();
+    emit renderFrame_Cam1_Done(); //!< Tells WL camera to capture another frame
 }
 
 void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 {
-
     tPvFrame* FramePtr1 = cam->getFramePtr();
     tPvHandle* CamHandle = cam->getHandle();
-    PvAttrUint32Set(*CamHandle, "ExposureValue", 500000);
+    PvAttrUint32Set(*CamHandle, "ExposureValue", this->exposure_NIR);
 
-
-    //unsigned short* rawPtr = (unsigned short)FramePtr1->ImageBuffer;
     unsigned short* rawPtr = static_cast<unsigned short*>(FramePtr1->ImageBuffer);
-    //unsigned char* rawPtr = (unsigned char*)FramePtr1->ImageBuffer;
 
     /// False coloring. Sets up 7 thresholds divided evenly between minVal and maxVal
     /// Displays a particular RGB value that corresponds to the intensity of the pixels

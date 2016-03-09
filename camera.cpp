@@ -52,7 +52,7 @@ void Camera::captureSetup()
     if (this->Mono16)
     {
         PvAttrEnumSet(this->Handle, "PixelFormat", "Mono16");   //!< Sets frame format to Mono 16-bit if Mono16 = true
-        PvAttrBooleanSet(this->Handle, "StreamFrameRateConstrain", true);
+        //PvAttrBooleanSet(this->Handle, "StreamFrameRateConstrain", true);
         PvAttrEnumSet(this->Handle, "ExposureMode", "Manual");
         PvAttrUint32Set(this->Handle, "ExposureValue", 500000);
         PvAttrUint32Set(this->Handle,"StreamBytesPerSecond", 115000000 / 2 - 20000000);
