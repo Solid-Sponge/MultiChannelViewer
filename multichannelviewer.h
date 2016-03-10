@@ -199,8 +199,6 @@ private slots:  /// GUI related functions
 
     void on_Screenshot_clicked();
 
-    void on_checkBox_stateChanged(int arg1);
-
     void on_maxVal_spinbox_valueChanged(int arg1);
 
     void on_minVal_spinbox_valueChanged(int arg1);
@@ -214,6 +212,14 @@ private slots:  /// GUI related functions
     void on_RegionX_NIR_valueChanged(int arg1);
 
     void on_RegionY_NIR_valueChanged(int arg1);
+
+    void on_AutoExposure_stateChanged(int arg1);
+
+    void on_Monochrome_stateChanged(int arg1);
+
+    void on_WL_Exposure_valueChanged(int arg1);
+
+    void on_NIR_Exposure_valueChanged(int arg1);
 
 private:
     Ui::MultiChannelViewer *ui;

@@ -204,6 +204,9 @@ void MultiChannelViewer::AutoExposure()
     /// Additional lower and upper bounds are set individually for the WL camera and NIR camera to ensure
     /// that their corresponding exposure times never goes below or above certain values
 
+    if (!autoexpose)
+        return;
+
     unsigned short* Image_WL_data = new unsigned short[HEIGHT*WIDTH];
     unsigned short* Image_NIR_data = new unsigned short[HEIGHT*WIDTH];
 
@@ -242,8 +245,8 @@ void MultiChannelViewer::AutoExposure()
 
     int Histogram_WL_integral = 0;
     int Histogram_NIR_integral = 0;
-    int Histogram_WL_95percent_cutoff;
-    int Histogram_NIR_95percent_cutoff;
+    int Histogram_WL_95percent_cutoff = 0;
+    int Histogram_NIR_95percent_cutoff = 0;
 
     for (int i = 0; i < 4096; i++)
     {
@@ -583,7 +586,8 @@ void MultiChannelViewer::renderFrame_Cam3()
 
     qApp->processEvents();
 
-    QtConcurrent::run(this, &MultiChannelViewer::AutoExposure);
+    if (autoexpose)
+        QtConcurrent::run(this, &MultiChannelViewer::AutoExposure);
 
     if (screenshot_cam3)
     {
@@ -754,7 +758,7 @@ void MultiChannelViewer::on_Screenshot_clicked()
     this->screenshot_cam3 = true;
 }
 
-void MultiChannelViewer::on_checkBox_stateChanged(int arg1)
+void MultiChannelViewer::on_Monochrome_stateChanged(int arg1)
 {
     if (arg1 == Qt::Checked)
         this->monochrome = true;
@@ -785,4 +789,36 @@ void MultiChannelViewer::on_RegionX_NIR_valueChanged(int arg1)
 void MultiChannelViewer::on_RegionY_NIR_valueChanged(int arg1)
 {
     PvAttrUint32Set(*(Cam2.getHandle()), "RegionY", arg1);
+}
+
+void MultiChannelViewer::on_AutoExposure_stateChanged(int arg1)
+{
+    if (arg1 == Qt::Checked)
+    {
+        this->autoexpose = true;
+        ui->WL_Exposure->setReadOnly(true);
+        ui->NIR_Exposure->setReadOnly(true);
+    }
+    if (arg1 == Qt::Unchecked)
+    {
+        this->autoexpose = false;
+        ui->WL_Exposure->setReadOnly(false);
+        ui->NIR_Exposure->setReadOnly(false);
+    }
+}
+
+void MultiChannelViewer::on_WL_Exposure_valueChanged(int arg1)
+{
+    this->exposure_WL = static_cast<unsigned int>(arg1);
+    tPvHandle *cam = Cam1.getHandle();
+    if (cam != NULL)
+        PvAttrUint32Set(*cam, "ExposureValue", arg1);
+}
+
+void MultiChannelViewer::on_NIR_Exposure_valueChanged(int arg1)
+{
+    this->exposure_NIR = static_cast<unsigned int>(arg1);
+    tPvHandle *cam = Cam2.getHandle();
+    if (cam != NULL)
+        PvAttrUint32Set(*cam, "ExposureValue", arg1);
 }
