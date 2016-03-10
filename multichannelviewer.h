@@ -29,8 +29,17 @@
 #define HEIGHT 480
 #define AUTOEXPOSURE_CUTOFF 3000.0
 
+#ifdef __APPLE__
 #define _OSX
+#endif
+
+#ifdef __x86_64__
 #define _x64
+#endif
+
+#ifdef __i386__
+#define _x86
+#endif
 
 #define ULONG_PADDING(x) (((x+3) & ~3) - x)
 

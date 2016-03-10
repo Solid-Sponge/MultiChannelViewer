@@ -283,8 +283,8 @@ void MultiChannelViewer::AutoExposure()
 
     if (new_exposure_WL < 100)
         new_exposure_WL = 100;
-    if (new_exposure_WL > 300000)
-        new_exposure_WL = 300000;
+    if (new_exposure_WL > 120000)
+        new_exposure_WL = 120000;
     //if (new_exposure_WL > 550000)
     //    new_exposure_WL = 550000;
 
@@ -519,27 +519,36 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 
 void MultiChannelViewer::renderFrame_Cam3()
 {
+    QImage Cam1_Image_Mono;
+    QPixmap imgFrame(Cam1_Image->size());
+    QPainter p(&imgFrame);
+
     Mutex1.lock();
     if (monochrome)
     {
-        *Cam1_Image = Cam1_Image->convertToFormat(QImage::Format_RGB32);
-
-        unsigned int *data = (unsigned int*)Cam1_Image->bits();
-        int pixelCount = Cam1_Image->width() * Cam1_Image->height();
+        Cam1_Image_Mono = Cam1_Image->copy();
+        unsigned char *data = Cam1_Image_Mono.bits();
+        int pixelCount = Cam1_Image_Mono.width() * Cam1_Image_Mono.height();
 
         // Convert each pixel to grayscale
         for(int i = 0; i < pixelCount; ++i)
         {
-           int val = qGray(*data);
-           *data = qRgba(val, val, val, qAlpha(*data));
-           //*data = qRgb(val, val, val);
-           ++data;
-        }
-    }
+           int r = data[0];
+           int g = data[1];
+           int b = data[2];
+           int val = qGray(r, g, b); //!< Qt's integrated Grayscale conversion
 
-    QPixmap imgFrame(Cam1_Image->size());
-    QPainter p(&imgFrame);
-    p.drawImage(QPoint(0,0), *Cam1_Image);
+           data[0] = val;
+           data[1] = val;
+           data[2] = val;
+           data += 3;
+        }
+        p.drawImage(QPoint(0,0), Cam1_Image_Mono);
+    }
+    else
+    {
+        p.drawImage(QPoint(0,0), *Cam1_Image);
+    }
     Mutex1.unlock();
 
     Mutex2.lock();
@@ -565,8 +574,6 @@ void MultiChannelViewer::renderFrame_Cam3()
     }
     Mutex2.unlock();
 
-    //p.setOpacity(opacity_val);
-    //p.drawImage(QPoint(0,0), *Cam2_Image);
     p.drawImage(QPoint(0,0), Cam2_Image_transparency);
     p.end();
 
