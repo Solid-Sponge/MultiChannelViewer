@@ -53,7 +53,9 @@
 #include <QImage>
 #include <QPainter>
 #include <QMutex>
+
 #include <iostream>
+#include <cstdlib>
 #include <PvApi.h>
 #include <PvRegIo.h>
 #include <camera.h>

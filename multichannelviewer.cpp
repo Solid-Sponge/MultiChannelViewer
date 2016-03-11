@@ -362,6 +362,11 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
         timestamp.append("_WL.png");
         //timestamp = QString("/Screenshot/") + timestamp;
 
+#ifdef __APPLE__
+        system("mkdir ../../../Screenshot");
+        timestamp = QString("../../../Screenshot/") + timestamp;
+#endif
+
         QFile file(timestamp);
         //QFile file(QCoreApplication::applicationDirPath() + "/Screenshot/" + timestamp);
         file.open(QIODevice::WriteOnly);
@@ -500,6 +505,11 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
         timestamp.replace(QString(":"), QString("-"));
         timestamp.append("_NIR.png");
 
+#ifdef __APPLE__
+        system("mkdir ../../../Screenshot");
+        timestamp = QString("../../../Screenshot/") + timestamp;
+#endif
+
         QFile file(timestamp);
         file.open(QIODevice::WriteOnly);
         imgFrame.save(&file, "PNG");
@@ -596,6 +606,11 @@ void MultiChannelViewer::renderFrame_Cam3()
         timestamp.replace(QString(":"), QString("-"));
         timestamp.append("_WL+NIR.png");
 
+#ifdef __APPLE__
+        timestamp = QString("../../../Screenshot/") + timestamp;
+        system("mkdir ../../../Screenshot");
+#endif
+
         QFile file(timestamp);
         file.open(QIODevice::WriteOnly);
         imgFrame.save(&file, "PNG");
@@ -603,10 +618,24 @@ void MultiChannelViewer::renderFrame_Cam3()
         screenshot_cam3 = false;
     }
 
-    if (recording)
+    if (recording)  //!< Use foreground * alpha + background * (1-alpha)
     {
-        QImage RGB24 = imgFrame.toImage();
-        RGB24 = RGB24.convertToFormat(QImage::Format_RGB888);
+        QImage RGB24(WIDTH, HEIGHT, QImage::Format_RGB888);
+        unsigned char* Cam1_Image_ptr = (monochrome) ? Cam1_Image_Mono.bits() : Cam1_Image->bits();
+        unsigned char* Cam2_Image_ptr = Cam2_Image->bits();
+        unsigned char* RGB24_ptr = RGB24.bits();
+
+        for (int i = 0; i < WIDTH*HEIGHT; i++)
+        {
+            RGB24_ptr[0] = Cam1_Image_ptr[0] * (1.0-opacity_val) + Cam2_Image_ptr[0] * (opacity_val);
+            RGB24_ptr[1] = Cam1_Image_ptr[1] * (1.0-opacity_val) + Cam2_Image_ptr[1] * (opacity_val);
+            RGB24_ptr[2] = Cam1_Image_ptr[2] * (1.0-opacity_val) + Cam2_Image_ptr[2] * (opacity_val);
+            RGB24_ptr += 3;
+            Cam1_Image_ptr += 3;
+            Cam2_Image_ptr += 3;
+        }
+
+        //RGB24 = RGB24.convertToFormat(QImage::Format_RGB888);
         Video3.WriteFrame(RGB24.bits());
     }
 }
@@ -719,7 +748,7 @@ void MultiChannelViewer::on_Record_toggled(bool checked)
         timestamp_filename_WL.append("_WL.avi");
         timestamp_filename_WL.replace(QString(" "), QString("_"));
         timestamp_filename_WL.replace(QString(":"), QString("-"));
-        timestamp_filename_WL = QString("Video/") + timestamp_filename_WL;
+        //timestamp_filename_WL = QString("Video/") + timestamp_filename_WL;
 
         QString timestamp_filename_NIR = QDateTime::currentDateTime().toString();
         timestamp_filename_NIR.append("_NIR.avi");
@@ -730,6 +759,14 @@ void MultiChannelViewer::on_Record_toggled(bool checked)
         timestamp_filename_WL_NIR.append("_WL+NIR.avi");
         timestamp_filename_WL_NIR.replace(QString(" "), QString("_"));
         timestamp_filename_WL_NIR.replace(QString(":"), QString("-"));
+
+
+        #ifdef __APPLE__
+        system("mkdir ../../../Video");
+        timestamp_filename_WL = QString("../../../Video/") + timestamp_filename_WL;
+        timestamp_filename_NIR = QString("../../../Video/") + timestamp_filename_NIR;
+        timestamp_filename_WL_NIR = QString("../../../Video/") + timestamp_filename_WL_NIR;
+        #endif
 
         char* filename_WL = (char*) timestamp_filename_WL.toStdString().c_str();
         this->Video1.SetupVideo(filename_WL, 640, 480, 15, 2, 750000); //bitrate = 40000000
