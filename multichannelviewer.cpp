@@ -26,12 +26,15 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
     ui->maxVal->setRange(0,4095);
     ui->minVal->setValue(10);
     ui->maxVal->setValue(200);
-
+    autoexpose = true;
+    exposure_WL = 60000;
+    exposure_NIR = 500000;
     Cam1_Image = new QImage(WIDTH, HEIGHT, QImage::Format_RGB888);
     Cam2_Image = new QImage(WIDTH, HEIGHT, QImage::Format_RGB888);
-
+    Cam2_Image_Raw = new unsigned char[HEIGHT*WIDTH*2];
     Cam1_Image->fill(0);
     Cam2_Image->fill(0);
+
 
     if (this->InitializePv() && this->ConnectToCam()) //!< Executes if PvAPI initializes and Cameras connect successfully
     {
@@ -120,8 +123,7 @@ bool MultiChannelViewer::ConnectToCam()
     tPvCameraInfoEx   info[2];
     unsigned long     numCameras;
     numCameras = PvCameraListEx(info, 2, NULL, sizeof(tPvCameraInfoEx));
-    // Open the first two cameras found, if it’s not already open. (See
-    // function reference for PvCameraOpen for a more complex example.)
+    // Open the first two cameras found, if it’s not already open.
     if ((numCameras >= 1) && (info[0].PermittedAccess & ePvAccessMaster) && (info[1].PermittedAccess & ePvAccessMaster))
     {
         Cam1.setID(info[0].UniqueId);
@@ -147,6 +149,166 @@ bool MultiChannelViewer::ConnectToCam()
     return false;
 }
 
+void MultiChannelViewer::AutoExposure()
+{
+    /// The algorithm used here is relatively complex, and functions as a self-correcting algorithm.
+    /// The first step is to acquire the latest two frames from the cameras. Since the latest frame
+    /// is constantly updating, mutexes are put in place to prevent the data from updating until the
+    /// frame data has been copied to local storage (freeing access to the lastest frame data as early
+    /// as possible)
+    ///
+    /// Afterwards, the next step is to convert both frames into a quantifiable scalar format for comparison.
+    /// The easiest way to do that is by comparing their intensities. The NIR image is in a 16-bit Monochrome
+    /// format ranging from [0-4096], so each pixel corresponds directly to one intensity value.
+    /// The WL image however, is in a 24-bit RGB format (8 bits per color) ranging from [0-255] each channel.
+    /// The WL image is converted into 8-bit Monochrome format [0-256] by taking a weighted sum from each
+    /// channel, keeping in mind that the human eye sees green better than red, which it sees better than blue.
+    /// However, the NIR image has a higher precision (16-bit) than the new WL image (8-bit). The WL image is
+    /// expanded to a domain of [0-4096] (16-bit) by multiplying each individual pixel by 16.
+    ///
+    /// **** Dev note: In hindsight, I'm not sure if expanding the domain is necessary. Might be removed ****
+    /// **** in future                                                                                   ****
+    ///
+    /// Once both images are in these formats, a histogram is generated for each image. This is implemented as
+    /// a simple array of 4096 elements, each index corresponding to a pixel intensity. It then goes through
+    /// each pixel and increments the value at the index corresponding to the intensity value by one.
+    /// (Ex: A value of 2000 in a pixel, Histogram_WL[2000]++)
+    ///
+    /// There's only a slight catch. When the endoscope is placed on the camera, the corners of the camera
+    /// are blocked, as the endoscope has a tiny viewing space. In order to avoid counting those pixels, a
+    /// mask is implemented. This mask is really simple, as it just ignores any pixels with intensities less
+    /// than 32 (under the assumption that WL signal is readily available and any really low signal tends to
+    /// correspond with the corners of the image). It also keeps track of the amount of pixels in the frame
+    /// that correspond to actual signal data (in pixel_count), as opposed to corner pixels.
+    ///
+    /// As far as the NIR cam is concerned, the camera is constantly starved for signals, and the ability
+    /// to distinguish between the corners of the camera and the signal itself is severely diminished as
+    /// a result. The easiest remedy is to just borrow the same mask from the WL camera, under the assumption
+    /// that both cameras are aligned. The histogram counts for the NIR take place in the same
+    /// conditional that checks for whether a pixel is a corner-pixel or a valid one.
+    ///
+    /// Finally, an integral (more of a sum) is taken across both histograms up to the 95% area.
+    /// What this means is each value in each index of the histogram is added up until this value reaches
+    /// 95% of the valid amount of pixels (not corner pixels). When 95% is reached, the index value is recorded
+    /// and the loop breaks. This value is known as the histogram cutoff. The reason 95% was chosen was to
+    /// eliminate outliers at the very top due to light reflection.
+    /// (Ex: Sum += Histogram[0].....Histogram[i] where i is the earliest index value that causes Sum
+    ///  to be equal to 95% of pixel_count)
+    ///
+    /// The histogram cutoff value is compared to a constant value predefined as AUTOEXPOSURE_CUTOFF.
+    /// The new exposure value is calculated based off this formula:
+    ///
+    ///     new_exposure = {1 - (Cutoff - AUTOEXPOSURE_CUTOFF)/ AUTOEXPOSURE_CUTOFF} * old_exposure
+    ///
+    /// Limits are set to ensure that the new exposure never increases or decreases by more than 30%.
+    /// Additional lower and upper bounds are set individually for the WL camera and NIR camera to ensure
+    /// that their corresponding exposure times never goes below or above certain values
+
+    if (!autoexpose)
+        return;
+
+    unsigned short* Image_WL_data = new unsigned short[HEIGHT*WIDTH];
+    unsigned short* Image_NIR_data = new unsigned short[HEIGHT*WIDTH];
+
+    Mutex1.lock();
+    QImage Image_WL = Cam1_Image->copy();
+    Mutex1.unlock();
+
+    Mutex2.lock();
+    //QImage Image_NIR = Cam2_Image->copy();
+    std::memcpy(Image_NIR_data, Cam2_Image_Raw, HEIGHT*WIDTH*2);
+    Mutex2.unlock();
+
+    unsigned char* Image_WL_Original = Image_WL.bits();
+    for (int i = 0; i < Image_WL.height()*Image_WL.width(); i++)
+    {
+        double r = Image_WL_Original[0];
+        double g = Image_WL_Original[1];
+        double b = Image_WL_Original[2];
+        Image_WL_data[i] = (0.21*r + 0.72*g + 0.07*b)*16; //!< Converts WL RGB 24-bit to 16-bit Mono
+        Image_WL_Original = Image_WL_Original + 3;
+    }
+
+    int Histogram_WL[4096] = {0};
+    int Histogram_NIR[4096] = {0};
+    int pixel_count = 0;
+
+    for (int i = 0; i < Image_WL.height()*Image_WL.width(); i++)
+    {
+        if (Image_WL_data[i] > 32)
+        {
+            Histogram_WL[Image_WL_data[i]]++;
+            Histogram_NIR[Image_NIR_data[i]]++;
+            pixel_count++;
+        }
+    }
+
+    int Histogram_WL_integral = 0;
+    int Histogram_NIR_integral = 0;
+    int Histogram_WL_95percent_cutoff = 0;
+    int Histogram_NIR_95percent_cutoff = 0;
+
+    for (int i = 0; i < 4096; i++)
+    {
+        Histogram_WL_integral += Histogram_WL[i];
+        if (Histogram_WL_integral > 0.95*pixel_count)
+        {
+            Histogram_WL_95percent_cutoff = i;
+            break;
+        }
+    }
+    for (int i = 0; i < 4096; i++)
+    {
+        Histogram_NIR_integral += Histogram_NIR[i];
+        if (Histogram_NIR_integral > 0.95*pixel_count)
+        {
+            Histogram_NIR_95percent_cutoff = i;
+            break;
+        }
+    }
+    double exposure_WL_multiplier =
+            1 - ((double) Histogram_WL_95percent_cutoff - AUTOEXPOSURE_CUTOFF)/AUTOEXPOSURE_CUTOFF;
+    double exposure_NIR_multiplier =
+            1 - ((double) Histogram_NIR_95percent_cutoff - AUTOEXPOSURE_CUTOFF)/AUTOEXPOSURE_CUTOFF;
+
+    if (exposure_WL_multiplier > 1.1)
+        exposure_WL_multiplier = 1.1;
+    if (exposure_WL_multiplier < 0.9)
+        exposure_WL_multiplier = 0.9;
+
+    if (exposure_NIR_multiplier > 1.1)
+        exposure_NIR_multiplier = 1.1;
+    if (exposure_NIR_multiplier < 0.9)
+        exposure_NIR_multiplier = 0.9;
+
+    unsigned int new_exposure_WL = (double) this->exposure_WL*exposure_WL_multiplier;
+    unsigned int new_exposure_NIR = (double) this->exposure_NIR*exposure_NIR_multiplier;
+
+    if (new_exposure_WL < 100)
+        new_exposure_WL = 100;
+    if (new_exposure_WL > 120000)
+        new_exposure_WL = 120000;
+    //if (new_exposure_WL > 550000)
+    //    new_exposure_WL = 550000;
+
+    if (new_exposure_NIR < 100)
+        new_exposure_NIR = 100;
+    if (new_exposure_NIR > 550000)
+        new_exposure_NIR = 550000;
+
+    this->exposure_WL = new_exposure_WL;
+    this->exposure_NIR = new_exposure_NIR;
+
+    tPvHandle* Cam1_Handle = Cam1.getHandle();
+    tPvHandle* Cam2_Handle = Cam2.getHandle();
+    PvAttrUint32Set(*Cam1_Handle, "ExposureValue", this->exposure_WL);
+    PvAttrUint32Set(*Cam2_Handle, "ExposureValue", this->exposure_NIR);
+
+    //if (new_exposure_WL)
+    delete[] Image_WL_data;
+    delete[] Image_NIR_data;
+}
+
 
 void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
 {
@@ -160,11 +322,13 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
     unsigned char* buffer = new unsigned char[buffer_size];
     unsigned char* bufferPtr = buffer;
 
+    /// RGB frame data from camera is in Bayer 8-bit format. This function converts it to RGB 24-bit.
     PvUtilityColorInterpolate(FramePtr1, &buffer[0], &buffer[1], &buffer[2], 2, 0);
 
     QImage imgFrame(FramePtr1->Width, FramePtr1->Height, QImage::Format_RGB888);
 
-    /// Displays frame on main GUI
+    /// Sets corresponding pixels of imgFrame equal to the camera frame data.
+    /// Uses pointer arithmetic to traverse through the frame data.
     for (int i = 0; i < FramePtr1->Height; i++)
     {
         for (int j = 0; j < FramePtr1->Width; j++)
@@ -176,25 +340,32 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
             unsigned char b = *bufferPtr;   //!< B-Pixel
             bufferPtr++;
             QRgb color = qRgb(r, g, b);
-            //imgFrame.setPixel(FramePtr1->Width - j - 1, i, color); //!< Displays pixel with (r,g,b) at location j,i
-            imgFrame.setPixel(j, i, color);
+            imgFrame.setPixel(j, i, color); //!< Sets pixel with (r,g,b) at location j,i
         }
     }
-    imgFrame = imgFrame.mirrored(true, false);
+    imgFrame = imgFrame.mirrored(true, false);  //!< Flips WL image. Needed due to dicroic
     ui->cam_1->setScaledContents(true);
     ui->cam_1->setPixmap(QPixmap::fromImage(imgFrame));
-    ui->cam_1->show();
+    ui->cam_1->show(); //!< Displays image on Main GUI
 
-    *Cam1_Image = imgFrame;
-    qApp->processEvents();
+    Mutex1.lock();
+    *Cam1_Image = imgFrame; //!< Updates latest frame. Mutex in place to prevent race conditions
+    Mutex1.unlock();
 
-    if (screenshot_cam1)
+    qApp->processEvents(); //!< Process other GUI events
+
+    if (screenshot_cam1) //!< Takes screenshot
     {
         QString timestamp = QDateTime::currentDateTime().toString();
         timestamp.replace(QString(" "), QString("_"));
         timestamp.replace(QString(":"), QString("-"));
         timestamp.append("_WL.png");
         //timestamp = QString("/Screenshot/") + timestamp;
+
+#ifdef __APPLE__
+        system("mkdir ../../../Screenshot");
+        timestamp = QString("../../../Screenshot/") + timestamp;
+#endif
 
         QFile file(timestamp);
         //QFile file(QCoreApplication::applicationDirPath() + "/Screenshot/" + timestamp);
@@ -203,7 +374,7 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
         file.close();
         screenshot_cam1 = false;
     }
-    if (recording)
+    if (recording) //!< Starts recording
     {
         //unsigned char* mirror_buffer = new unsigned char[buffer_size];
         //unsigned char* mirror_buffer_Ptr = mirror_buffer;
@@ -213,22 +384,19 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
         Video1.WriteFrame(mirror_buffer);
     }
 
-    renderFrame_Cam3();
+    renderFrame_Cam3(); //!< Renders third screen on GUI
 
     delete[] buffer;
-    emit renderFrame_Cam1_Done();
+    emit renderFrame_Cam1_Done(); //!< Tells WL camera to capture another frame
 }
 
 void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 {
     tPvFrame* FramePtr1 = cam->getFramePtr();
     tPvHandle* CamHandle = cam->getHandle();
-    PvAttrUint32Set(*CamHandle, "ExposureValue", 500000);
+    PvAttrUint32Set(*CamHandle, "ExposureValue", this->exposure_NIR);
 
-
-    //unsigned short* rawPtr = (unsigned short)FramePtr1->ImageBuffer;
     unsigned short* rawPtr = static_cast<unsigned short*>(FramePtr1->ImageBuffer);
-    //unsigned char* rawPtr = (unsigned char*)FramePtr1->ImageBuffer;
 
     /// False coloring. Sets up 7 thresholds divided evenly between minVal and maxVal
     /// Displays a particular RGB value that corresponds to the intensity of the pixels
@@ -319,7 +487,15 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
     ui->cam_2->setPixmap(QPixmap::fromImage(imgFrame));
     ui->cam_2->show();
 
+
+   // Mutex2.lock();
     *Cam2_Image = imgFrame;
+  //  Mutex2.unlock();
+
+    Mutex2.lock();
+    std::memcpy(Cam2_Image_Raw, FramePtr1->ImageBuffer, FramePtr1->ImageBufferSize);
+    Mutex2.unlock();
+
     qApp->processEvents();
 
     if (screenshot_cam2)
@@ -328,6 +504,11 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
         timestamp.replace(QString(" "), QString("_"));
         timestamp.replace(QString(":"), QString("-"));
         timestamp.append("_NIR.png");
+
+#ifdef __APPLE__
+        system("mkdir ../../../Screenshot");
+        timestamp = QString("../../../Screenshot/") + timestamp;
+#endif
 
         QFile file(timestamp);
         file.open(QIODevice::WriteOnly);
@@ -341,7 +522,8 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
         Video2.WriteFrame(buffer);
     }
 
-    renderFrame_Cam3();
+    //renderFrame_Cam3();
+
 
     delete[] buffer;
 
@@ -350,35 +532,72 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 
 void MultiChannelViewer::renderFrame_Cam3()
 {
+    QImage Cam1_Image_Mono;
+    QPixmap imgFrame(Cam1_Image->size());
+    QPainter p(&imgFrame);
+
+    Mutex1.lock();
     if (monochrome)
     {
-        *Cam1_Image = Cam1_Image->convertToFormat(QImage::Format_RGB32);
-
-        unsigned int *data = (unsigned int*)Cam1_Image->bits();
-        int pixelCount = Cam1_Image->width() * Cam1_Image->height();
+        Cam1_Image_Mono = Cam1_Image->copy();
+        unsigned char *data = Cam1_Image_Mono.bits();
+        int pixelCount = Cam1_Image_Mono.width() * Cam1_Image_Mono.height();
 
         // Convert each pixel to grayscale
         for(int i = 0; i < pixelCount; ++i)
         {
-           int val = qGray(*data);
-           *data = qRgba(val, val, val, qAlpha(*data));
-           //*data = qRgb(val, val, val);
-           ++data;
+           int r = data[0];
+           int g = data[1];
+           int b = data[2];
+           int val = qGray(r, g, b); //!< Qt's integrated Grayscale conversion
+
+           data[0] = val;
+           data[1] = val;
+           data[2] = val;
+           data += 3;
+        }
+        p.drawImage(QPoint(0,0), Cam1_Image_Mono);
+    }
+    else
+    {
+        p.drawImage(QPoint(0,0), *Cam1_Image);
+    }
+    Mutex1.unlock();
+
+    Mutex2.lock();
+    unsigned char* cam2_data = Cam2_Image->bits();
+    QImage Cam2_Image_transparency = Cam2_Image->convertToFormat(QImage::Format_ARGB32);
+    QRgb transparent_pixel = qRgba(0,0,0,0);
+
+    for (int i = 0; i < Cam2_Image->height(); i++)
+    {
+        for (int j = 0; j < Cam2_Image->width(); j++)
+        {
+            if (cam2_data[0] == 0 && cam2_data[1] == 0 && cam2_data[2] == 0)
+            {
+                Cam2_Image_transparency.setPixel(j,i,transparent_pixel);
+            }
+            else
+            {
+                QRgb pixel = qRgba(cam2_data[0],cam2_data[1],cam2_data[2],255*opacity_val);
+                Cam2_Image_transparency.setPixel(j,i,pixel);
+            }
+            cam2_data = cam2_data + 3;
         }
     }
+    Mutex2.unlock();
 
-    QPixmap imgFrame(Cam1_Image->size());
-    QPainter p(&imgFrame);
-
-    p.drawImage(QPoint(0,0), *Cam1_Image);
-    p.setOpacity(opacity_val);
-    p.drawImage(QPoint(0,0), *Cam2_Image);
+    p.drawImage(QPoint(0,0), Cam2_Image_transparency);
     p.end();
 
     ui->cam_3->setScaledContents(true);
     ui->cam_3->setPixmap(imgFrame);
     ui->cam_3->show();
+
     qApp->processEvents();
+
+    if (autoexpose)
+        QtConcurrent::run(this, &MultiChannelViewer::AutoExposure);
 
     if (screenshot_cam3)
     {
@@ -387,6 +606,11 @@ void MultiChannelViewer::renderFrame_Cam3()
         timestamp.replace(QString(":"), QString("-"));
         timestamp.append("_WL+NIR.png");
 
+#ifdef __APPLE__
+        timestamp = QString("../../../Screenshot/") + timestamp;
+        system("mkdir ../../../Screenshot");
+#endif
+
         QFile file(timestamp);
         file.open(QIODevice::WriteOnly);
         imgFrame.save(&file, "PNG");
@@ -394,10 +618,24 @@ void MultiChannelViewer::renderFrame_Cam3()
         screenshot_cam3 = false;
     }
 
-    if (recording)
+    if (recording)  //!< Use foreground * alpha + background * (1-alpha)
     {
-        QImage RGB24 = imgFrame.toImage();
-        RGB24 = RGB24.convertToFormat(QImage::Format_RGB888);
+        QImage RGB24(WIDTH, HEIGHT, QImage::Format_RGB888);
+        unsigned char* Cam1_Image_ptr = (monochrome) ? Cam1_Image_Mono.bits() : Cam1_Image->bits();
+        unsigned char* Cam2_Image_ptr = Cam2_Image->bits();
+        unsigned char* RGB24_ptr = RGB24.bits();
+
+        for (int i = 0; i < WIDTH*HEIGHT; i++)
+        {
+            RGB24_ptr[0] = Cam1_Image_ptr[0] * (1.0-opacity_val) + Cam2_Image_ptr[0] * (opacity_val);
+            RGB24_ptr[1] = Cam1_Image_ptr[1] * (1.0-opacity_val) + Cam2_Image_ptr[1] * (opacity_val);
+            RGB24_ptr[2] = Cam1_Image_ptr[2] * (1.0-opacity_val) + Cam2_Image_ptr[2] * (opacity_val);
+            RGB24_ptr += 3;
+            Cam1_Image_ptr += 3;
+            Cam2_Image_ptr += 3;
+        }
+
+        //RGB24 = RGB24.convertToFormat(QImage::Format_RGB888);
         Video3.WriteFrame(RGB24.bits());
     }
 }
@@ -411,11 +649,14 @@ void MultiChannelViewer::closeEvent(QCloseEvent *event)
         Video3.CloseVideo();
     }
 
+    QThread::sleep(1);
+
     thread1.quit();
     thread2.quit();
 
     Cam1.captureEnd();
     Cam2.captureEnd();
+    delete[] Cam2_Image_Raw;
 
     PvUnInitialize();
     QApplication::exit(0);
@@ -424,7 +665,7 @@ void MultiChannelViewer::closeEvent(QCloseEvent *event)
 
 void MultiChannelViewer::on_minVal_valueChanged(int value)
 {
-    if (value < this->maxVal - 150)
+    if (value < this->maxVal - 100)
     {
         this->minVal = value;
         ui->minVal_spinbox->setValue(value);
@@ -432,28 +673,28 @@ void MultiChannelViewer::on_minVal_valueChanged(int value)
     }
     else
     {
-        this->minVal = this->maxVal - 150;
-        ui->minVal_spinbox->setValue(this->maxVal - 150);
+        this->minVal = this->maxVal - 100;
+        ui->minVal_spinbox->setValue(this->maxVal - 100);
     }
 }
 
 void MultiChannelViewer::on_maxVal_valueChanged(int value)
 {
-    if (value > this->minVal + 150)
+    if (value > this->minVal + 100)
     {
         this->maxVal = value;
         ui->maxVal_spinbox->setValue(value);
     }
     else
     {
-        this->maxVal = this->minVal + 150;
-        ui->maxVal_spinbox->setValue(this->minVal + 150);
+        this->maxVal = this->minVal + 100;
+        ui->maxVal_spinbox->setValue(this->minVal + 100);
     }
 }
 
 void MultiChannelViewer::on_minVal_spinbox_valueChanged(int arg1)
 {
-    if (arg1 < this->maxVal - 150)
+    if (arg1 < this->maxVal - 100)
     {
         this->minVal = arg1;
         ui->minVal_spinbox->setValue(arg1);
@@ -461,15 +702,15 @@ void MultiChannelViewer::on_minVal_spinbox_valueChanged(int arg1)
     }
     else
     {
-        this->minVal = this->maxVal - 150;
-        ui->minVal_spinbox->setValue(this->maxVal - 150);
-        ui->minVal->setValue(this->maxVal - 150);
+        this->minVal = this->maxVal - 100;
+        ui->minVal_spinbox->setValue(this->maxVal - 100);
+        ui->minVal->setValue(this->maxVal - 100);
     }
 }
 
 void MultiChannelViewer::on_maxVal_spinbox_valueChanged(int arg1)
 {
-    if (arg1 > this->minVal + 150)
+    if (arg1 > this->minVal + 100)
     {
         this->maxVal = arg1;
         ui->maxVal_spinbox->setValue(arg1);
@@ -477,15 +718,15 @@ void MultiChannelViewer::on_maxVal_spinbox_valueChanged(int arg1)
     }
     else
     {
-        this->maxVal = this->minVal + 150;
-        ui->maxVal_spinbox->setValue(this->minVal + 150);
-        ui->maxVal->setValue(this->minVal + 150);
+        this->maxVal = this->minVal + 100;
+        ui->maxVal_spinbox->setValue(this->minVal + 100);
+        ui->maxVal->setValue(this->minVal + 100);
     }
 }
 
 void MultiChannelViewer::on_minVal_sliderMoved(int position)
 {
-    if (position > this->maxVal - 150)
+    if (position > this->maxVal - 100)
     {
         ui->minVal_spinbox->setValue(position);
     }
@@ -493,7 +734,7 @@ void MultiChannelViewer::on_minVal_sliderMoved(int position)
 
 void MultiChannelViewer::on_maxVal_sliderMoved(int position)
 {
-    if (position > this->minVal + 150)
+    if (position > this->minVal + 100)
     {
         ui->maxVal_spinbox->setValue(position);
     }
@@ -507,7 +748,7 @@ void MultiChannelViewer::on_Record_toggled(bool checked)
         timestamp_filename_WL.append("_WL.avi");
         timestamp_filename_WL.replace(QString(" "), QString("_"));
         timestamp_filename_WL.replace(QString(":"), QString("-"));
-        timestamp_filename_WL = QString("Video/") + timestamp_filename_WL;
+        //timestamp_filename_WL = QString("Video/") + timestamp_filename_WL;
 
         QString timestamp_filename_NIR = QDateTime::currentDateTime().toString();
         timestamp_filename_NIR.append("_NIR.avi");
@@ -518,6 +759,14 @@ void MultiChannelViewer::on_Record_toggled(bool checked)
         timestamp_filename_WL_NIR.append("_WL+NIR.avi");
         timestamp_filename_WL_NIR.replace(QString(" "), QString("_"));
         timestamp_filename_WL_NIR.replace(QString(":"), QString("-"));
+
+
+        #ifdef __APPLE__
+        system("mkdir ../../../Video");
+        timestamp_filename_WL = QString("../../../Video/") + timestamp_filename_WL;
+        timestamp_filename_NIR = QString("../../../Video/") + timestamp_filename_NIR;
+        timestamp_filename_WL_NIR = QString("../../../Video/") + timestamp_filename_WL_NIR;
+        #endif
 
         char* filename_WL = (char*) timestamp_filename_WL.toStdString().c_str();
         this->Video1.SetupVideo(filename_WL, 640, 480, 15, 2, 750000); //bitrate = 40000000
@@ -546,7 +795,7 @@ void MultiChannelViewer::on_Screenshot_clicked()
     this->screenshot_cam3 = true;
 }
 
-void MultiChannelViewer::on_checkBox_stateChanged(int arg1)
+void MultiChannelViewer::on_Monochrome_stateChanged(int arg1)
 {
     if (arg1 == Qt::Checked)
         this->monochrome = true;
@@ -577,4 +826,36 @@ void MultiChannelViewer::on_RegionX_NIR_valueChanged(int arg1)
 void MultiChannelViewer::on_RegionY_NIR_valueChanged(int arg1)
 {
     PvAttrUint32Set(*(Cam2.getHandle()), "RegionY", arg1);
+}
+
+void MultiChannelViewer::on_AutoExposure_stateChanged(int arg1)
+{
+    if (arg1 == Qt::Checked)
+    {
+        this->autoexpose = true;
+        ui->WL_Exposure->setReadOnly(true);
+        ui->NIR_Exposure->setReadOnly(true);
+    }
+    if (arg1 == Qt::Unchecked)
+    {
+        this->autoexpose = false;
+        ui->WL_Exposure->setReadOnly(false);
+        ui->NIR_Exposure->setReadOnly(false);
+    }
+}
+
+void MultiChannelViewer::on_WL_Exposure_valueChanged(int arg1)
+{
+    this->exposure_WL = static_cast<unsigned int>(arg1);
+    tPvHandle *cam = Cam1.getHandle();
+    if (cam != NULL)
+        PvAttrUint32Set(*cam, "ExposureValue", arg1);
+}
+
+void MultiChannelViewer::on_NIR_Exposure_valueChanged(int arg1)
+{
+    this->exposure_NIR = static_cast<unsigned int>(arg1);
+    tPvHandle *cam = Cam2.getHandle();
+    if (cam != NULL)
+        PvAttrUint32Set(*cam, "ExposureValue", arg1);
 }

@@ -27,9 +27,19 @@
 
 #define WIDTH 640
 #define HEIGHT 480
+#define AUTOEXPOSURE_CUTOFF 3000.0
 
+#ifdef __APPLE__
 #define _OSX
+#endif
+
+#ifdef __x86_64__
 #define _x64
+#endif
+
+#ifdef __i386__
+#define _x86
+#endif
 
 #define ULONG_PADDING(x) (((x+3) & ~3) - x)
 
@@ -38,10 +48,14 @@
 #include <QMessageBox>
 #include <QLabel>
 #include <QThread>
+#include <QtConcurrent/QtConcurrent>
 #include <QDateTime>
 #include <QImage>
 #include <QPainter>
+#include <QMutex>
+
 #include <iostream>
+#include <cstdlib>
 #include <PvApi.h>
 #include <PvRegIo.h>
 #include <camera.h>
@@ -96,6 +110,30 @@ public:
      */
     bool ConnectToCam();    //!< TODO: Implement a way of discriminating between NIR and WL cams
 
+    /**
+     * @brief Autoexposure algorithm based on the relative intensities of pixel data
+     *
+     * AutoExposure() reads the latest image frames (stored in Cam1_Image and
+     * Cam2_Image), and adjusts their respective cameras' exposure time. This is done
+     * by attempting to map 95% of pixel intensity at an exact threshold. If it detects
+     * that the overall intensity is higher than the threshold, the exposure is reduced,
+     * and if the overall intensity is lower than the threshold, the exposure is increased.
+     *
+     * Min and Max caps are set to prevent integrating for too short or too long. Additionally,
+     * a check is placed to prevent the exposure time from increasing more or less than 30% of
+     * the previous value.
+     *
+     * This function is thread-safe, and in fact is recommended to be run in a seperate thread.
+     * The latest frame datas have mutex locks to prevent the data from being overwritten while
+     * copying the data to stack memory.
+     *
+     * Currently, the NIR camera tends to max out the exposure time as it is constantly signal-starved.
+     * The WL camera sits at a comfortable frame-rate, but the exposure time usually ends up a bit lower
+     * than it could be, resulting in a slightly starved signal from distances,
+     *
+     */
+    void AutoExposure();
+
 
 signals:
 
@@ -142,7 +180,7 @@ public slots:
      * renderFrame_Cam3() is intended for rendering the third screen.
      * Even though the function has Cam in it, there is no third camera attached.
      * This function renders the third screen, which is the latest NIR Cam2 image
-     * on top of hte latest WL Cam1 image (transparency layer).
+     * on top of the latest WL Cam1 image (transparency layer).
      *
      */
     void renderFrame_Cam3();
@@ -150,7 +188,7 @@ public slots:
 protected:
     void closeEvent(QCloseEvent *event);
 
-private slots:
+private slots:  /// GUI related functions
     void on_minVal_valueChanged(int value);
 
     void on_maxVal_valueChanged(int value);
@@ -162,8 +200,6 @@ private slots:
     void on_Record_toggled(bool checked);
 
     void on_Screenshot_clicked();
-
-    void on_checkBox_stateChanged(int arg1);
 
     void on_maxVal_spinbox_valueChanged(int arg1);
 
@@ -179,29 +215,52 @@ private slots:
 
     void on_RegionY_NIR_valueChanged(int arg1);
 
+    void on_AutoExposure_stateChanged(int arg1);
+
+    void on_Monochrome_stateChanged(int arg1);
+
+    void on_WL_Exposure_valueChanged(int arg1);
+
+    void on_NIR_Exposure_valueChanged(int arg1);
+
 private:
     Ui::MultiChannelViewer *ui;
     Camera Cam1;                    //!< White Light Camera
     Camera Cam2;                    //!< Near Infrared Camera
+
     QImage* Cam1_Image;             //!< WL Cam frame data for third screen
     QImage* Cam2_Image;             //!< NIR Cam frame data for third screen
+    unsigned char* Cam2_Image_Raw;  //!< NIR Cam raw frame date (16-bit monochrome)
+
     QThread thread1;                //!< WL Cam streaming thread
     QThread thread2;                //!< NIR Cam streaming thread
+
+    QMutex Mutex1;                  //!< WL Cam Mutex (for Cam1_Image)
+    QMutex Mutex2;                  //!< NIR Cam Mutex (for Cam2_Image and Cam2_Image_Raw)
+
     FFMPEG Video1;                  //!< WL Video Encoder
     FFMPEG Video2;                  //!< NIR Video Encoder
     FFMPEG Video3;                  //!< WL+NIR Video Encoder
+
     unsigned short minVal;          //!< False Coloring Minimum Threshold
     unsigned short maxVal;          //!< False Coloring Maximum Threshold
     bool recording;                 //!< Set to true when Video Encoders are recording
+
     bool screenshot_cam1;           //!< Set to true when screenshotting cam1
     bool screenshot_cam2;           //!< Set to true when screenshotting cam2
     bool screenshot_cam3;           //!< Set to true when screenshotting thirdscreen
-    bool monochrome;
-    double opacity_val;
-    int region_x_WL;
-    int region_y_WL;
-    int region_x_NIR;
-    int region_y_NIR;
+
+    bool monochrome;                //!< If true, displays monochrome underlay in third screen
+    double opacity_val;             //!< Value of opacity overlay for third screen
+
+    bool autoexpose;                //!< If true, uses custom autoexposure algorithm
+    unsigned int exposure_WL;       //!< WL cam exposure value
+    unsigned int exposure_NIR;      //!< NIR cam exposure value
+
+    int region_x_WL;                //!< X-coordinate of topleft pixel for WL cam
+    int region_y_WL;                //!< Y-coordinate of topleft pixel for WL cam
+    int region_x_NIR;               //!< X-coordinate of topleft pixel for NIR cam
+    int region_y_NIR;               //!< Y-coordinate of topleft pixel for NIR cam
 };
 
 #endif // MULTICHANNELVIEWER_H

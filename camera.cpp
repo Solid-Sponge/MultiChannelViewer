@@ -4,6 +4,7 @@ Camera::Camera(QObject *parent) : QObject(parent)
 {
     this->Mono16 = false;
     this->Disconnected = false;
+    this->Handle = NULL;
 }
 
 Camera::Camera(unsigned long UniqueID)
@@ -52,7 +53,7 @@ void Camera::captureSetup()
     if (this->Mono16)
     {
         PvAttrEnumSet(this->Handle, "PixelFormat", "Mono16");   //!< Sets frame format to Mono 16-bit if Mono16 = true
-        PvAttrBooleanSet(this->Handle, "StreamFrameRateConstrain", true);
+        //PvAttrBooleanSet(this->Handle, "StreamFrameRateConstrain", true);
         PvAttrEnumSet(this->Handle, "ExposureMode", "Manual");
         PvAttrUint32Set(this->Handle, "ExposureValue", 500000);
         PvAttrUint32Set(this->Handle,"StreamBytesPerSecond", 115000000 / 2 - 20000000);
@@ -78,9 +79,9 @@ void Camera::captureSetup()
         PvAttrUint32Set(this->Handle, "RegionX", 450);
         PvAttrUint32Set(this->Handle, "RegionY", 180);
 
-        PvAttrUint32Set(this->Handle, "ExposureAutoMax", 333334);
-        //PvAttrEnumSet(this->Handle, "ExposureMode", "Manual");
-        //PvAttrUint32Set(this->Handle, "ExposureValue", 15000);
+        //PvAttrUint32Set(this->Handle, "ExposureAutoMax", 60000);
+        PvAttrEnumSet(this->Handle, "ExposureMode", "Manual");
+        PvAttrUint32Set(this->Handle, "ExposureValue", 60000);
 
     }
 
@@ -105,7 +106,6 @@ void Camera::captureSetup()
     PvAttrEnumSet(this->Handle, "FrameStartTriggerMode", "Freerun");
     //set camera to receive continuous number of frame triggers
     PvAttrEnumSet(this->Handle, "AcquisitionMode", "Continuous");
-    PvAttrEnumSet(this->Handle, "ExposureMode", "Auto");
     //PvCaptureAdjustPacketSize(this->Handle,8228);
     PvAttrUint32Set(this->Handle, "HeartbeatTimeout", 775000);
 
@@ -133,6 +133,7 @@ void Camera::captureEnd()
 
 void Camera::capture()
 {
+
     PvCommandRun(this->Handle, "AcquisitionStart");
     //PvCaptureQueueClear(this->Handle);
 
