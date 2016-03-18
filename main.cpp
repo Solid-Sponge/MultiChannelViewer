@@ -1,6 +1,6 @@
-#define _OSX
-#define _x64
-#define FRAMESCOUNT 3
+//#define _OSX
+//#define _x64
+//#define FRAMESCOUNT 3
 
 #include "multichannelviewer.h"
 #include <QApplication>
