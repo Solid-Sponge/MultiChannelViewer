@@ -224,7 +224,7 @@ void MultiChannelViewer::AutoExposure()
         double r = Image_WL_Original[0];
         double g = Image_WL_Original[1];
         double b = Image_WL_Original[2];
-        Image_WL_data[i] = (0.21*r + 0.72*g + 0.07*b)*16; //!< Converts WL RGB 24-bit to 16-bit Mono
+        Image_WL_data[i] = static_cast<unsigned short>((0.21*r + 0.72*g + 0.07*b)*16); //!< Converts WL RGB 24-bit to 16-bit Mono
         Image_WL_Original = Image_WL_Original + 3;
     }
 
@@ -236,8 +236,12 @@ void MultiChannelViewer::AutoExposure()
     {
         if (Image_WL_data[i] > 32)
         {
-            Histogram_WL[Image_WL_data[i]]++;
-            Histogram_NIR[Image_NIR_data[i]]++;
+            unsigned short WL = static_cast<unsigned short>(Image_WL_data[i]);
+            Histogram_WL[WL]++;
+            //Histogram_WL[Image_WL_data[i]]++;
+            unsigned short NIR = static_cast<unsigned short>(Image_NIR_data[i]);
+            Histogram_NIR[NIR]++;
+            //Histogram_NIR[Image_NIR_data[i]]++;
             pixel_count++;
         }
     }
@@ -348,7 +352,7 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
     ui->cam_1->show(); //!< Displays image on Main GUI
 
     Mutex1.lock();
-    *Cam1_Image = imgFrame; //!< Updates latest frame. Mutex in place to prevent race conditions
+    *Cam1_Image = imgFrame.copy(); //!< Updates latest frame. Mutex in place to prevent race conditions
     Mutex1.unlock();
 
     qApp->processEvents(); //!< Process other GUI events

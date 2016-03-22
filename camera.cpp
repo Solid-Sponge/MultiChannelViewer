@@ -154,11 +154,10 @@ void Camera::capture()
     PvCaptureWaitForFrameDone(this->Handle, &(this->Frames[0]), PVINFINITE);
     PvCommandRun(this->Handle, "AcquisitionStop");
 
-
     if (Mono16)
     {
 
-        // Filter
+        // Median Filter
 
         unsigned short* rawPtr = static_cast<unsigned short*>(Frames[0].ImageBuffer);
         unsigned char* filter = new unsigned char[Frames[0].ImageSize];
@@ -181,9 +180,8 @@ void Camera::capture()
                 filterPtr[Frames[0].Width*(i) + j] = window[3];
             }
         }
-
         memcpy(rawPtr, filterPtr, Frames[0].ImageSize);
-
+        delete[] filter;
     }
 
     emit frameReady(this);
