@@ -154,6 +154,7 @@ void Camera::capture()
     PvCaptureWaitForFrameDone(this->Handle, &(this->Frames[0]), PVINFINITE);
     PvCommandRun(this->Handle, "AcquisitionStop");
 
+
     if (Mono16)
     {
 
@@ -162,7 +163,7 @@ void Camera::capture()
         unsigned short* rawPtr = static_cast<unsigned short*>(Frames[0].ImageBuffer);
         unsigned char* filter = new unsigned char[Frames[0].ImageSize];
         unsigned short* filterPtr = reinterpret_cast<unsigned short*>(filter);
-        QVector<unsigned short> window(8);
+        QVector<unsigned short> window(9);
         for (int i = 1; i < Frames[0].Height - 1; i++)
         {
             for (int j = 1; j < Frames[0].Width - 1; j++)
@@ -171,13 +172,14 @@ void Camera::capture()
                 window[1] = rawPtr[Frames[0].Width*(i-1) + (j)];
                 window[2] = rawPtr[Frames[0].Width*(i-1) + (j+1)];
                 window[3] = rawPtr[Frames[0].Width*(i) + (j-1)];
-                window[4] = rawPtr[Frames[0].Width*(i) + (j+1)];
-                window[5] = rawPtr[Frames[0].Width*(i+1) + (j-1)];
-                window[6] = rawPtr[Frames[0].Width*(i+1) + (j)];
-                window[7] = rawPtr[Frames[0].Width*(i+1) + (j+1)];
+                window[4] = rawPtr[Frames[0].Width*(i) + (j)];
+                window[5] = rawPtr[Frames[0].Width*(i) + (j+1)];
+                window[6] = rawPtr[Frames[0].Width*(i+1) + (j-1)];
+                window[7] = rawPtr[Frames[0].Width*(i+1) + (j)];
+                window[8] = rawPtr[Frames[0].Width*(i+1) + (j+1)];
 
                 qSort(window);
-                filterPtr[Frames[0].Width*(i) + j] = window[3];
+                filterPtr[Frames[0].Width*(i) + j] = window[4];
             }
         }
         memcpy(rawPtr, filterPtr, Frames[0].ImageSize);

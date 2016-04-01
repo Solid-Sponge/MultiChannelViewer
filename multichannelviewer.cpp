@@ -210,13 +210,17 @@ void MultiChannelViewer::AutoExposure()
     unsigned short* Image_WL_data = new unsigned short[HEIGHT*WIDTH];
     unsigned short* Image_NIR_data = new unsigned short[HEIGHT*WIDTH];
 
-    Mutex1.lock();
+    //Mutex1.lock();
+    //QMutexLocker *Locker = new QMutexLocker(&Mutex1);
     QImage Image_WL = Cam1_Image->copy();
-    Mutex1.unlock();
+    //delete Locker;
+    //Mutex1.unlock();
 
-    Mutex2.lock();
+    //Mutex2.lock();
+    //Locker = new QMutexLocker(&Mutex2);
     std::memcpy(Image_NIR_data, Cam2_Image_Raw, HEIGHT*WIDTH*2);
-    Mutex2.unlock();
+    //delete Locker;
+    //Mutex2.unlock();
 
     unsigned char* Image_WL_Original = Image_WL.bits();
     for (int i = 0; i < Image_WL.height()*Image_WL.width(); i++)
@@ -351,9 +355,11 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
     ui->cam_1->setPixmap(QPixmap::fromImage(imgFrame));
     ui->cam_1->show(); //!< Displays image on Main GUI
 
-    Mutex1.lock();
+    //Mutex1.lock();
+    //QMutexLocker *Locker = new QMutexLocker(&Mutex1);
     *Cam1_Image = imgFrame.copy(); //!< Updates latest frame. Mutex in place to prevent race conditions
-    Mutex1.unlock();
+    //delete Locker;
+    //Mutex1.unlock();
 
     qApp->processEvents(); //!< Process other GUI events
 
@@ -494,9 +500,11 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
     *Cam2_Image = imgFrame;
   //  Mutex2.unlock();
 
-    Mutex2.lock();
+    //Mutex2.lock();
+    //QMutexLocker *Locker = new QMutexLocker(&Mutex2);
     std::memcpy(Cam2_Image_Raw, FramePtr1->ImageBuffer, FramePtr1->ImageBufferSize);
-    Mutex2.unlock();
+    //delete Locker;
+    //Mutex2.unlock();
 
     qApp->processEvents();
 
