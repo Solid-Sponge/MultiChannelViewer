@@ -11,7 +11,7 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
     ui(new Ui::MultiChannelViewer)
 {
     ui->setupUi(this);
-    this->show();   //!< Displays main GUI
+    //this->show();   //!< Displays main GUI
 
 
     /// Setting initial values for recording, screenshot, and False-coloring thresholds
@@ -38,40 +38,74 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
 
     if (this->InitializePv() && this->ConnectToCam()) //!< Executes if PvAPI initializes and Cameras connect successfully
     {
-        Cam1.moveToThread(&thread1); //!< Assigns Cam1 to Thread1
-        Cam2.moveToThread(&thread2); //!< Assigns Cam2 to Thread2
+        if (this->Two_Cameras_Connected)
+        {
+            Cam1.moveToThread(&thread1); //!< Assigns Cam1 to Thread1
+            Cam2.moveToThread(&thread2); //!< Assigns Cam2 to Thread2
 
-        Cam2.SetMono16Bit();    //!< Enables 16-bit Mono format for Cam2 (NIR cam)
-
-
-        /// Connects various slots and signals. Identical for the second set of connections
-        ///
-        /// The first connection connects the frameReady signal to the renderFrame slot.
-        /// When the camera has finished capturing a frame, the renderFrame_Cam1 function will execute
-        /// displaying the frame on the Main GUI window
-        ///
-        /// The second connection connects the renderFrame_Cam1_Done signal to the capture() slot.
-        /// This completes the loop so that when the Main GUI has finished displaying the frame,
-        /// it tells the camera to capture another frame
-        ///
-        /// The third connection ties the camera object to its own thread, and by extension, tying all these
-        /// connections to that same thread, so that the camera captures and displays an image all on its own
-        /// thread
-        connect(&Cam1, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_Cam1(Camera*)),Qt::AutoConnection);
-        connect(this, SIGNAL(renderFrame_Cam1_Done()), &Cam1, SLOT(capture()),Qt::AutoConnection);
-        connect(&thread1, SIGNAL(started()), &Cam1, SLOT(capture()));
+            Cam2.SetMono16Bit();    //!< Enables 16-bit Mono format for Cam2 (NIR cam)
 
 
-        ///Identical to the above set of slots and signals, except for Cam2 and Cam2-specific functions
-        connect(&Cam2, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_Cam2(Camera*)),Qt::AutoConnection);
-        connect(this, SIGNAL(renderFrame_Cam2_Done()), &Cam2, SLOT(capture()), Qt::AutoConnection);
-        connect(&thread2, SIGNAL(started()), &Cam2, SLOT(capture()));
+            /// Connects various slots and signals. Identical for the second set of connections
+            ///
+            /// The first connection connects the frameReady signal to the renderFrame slot.
+            /// When the camera has finished capturing a frame, the renderFrame_Cam1 function will execute
+            /// displaying the frame on the Main GUI window
+            ///
+            /// The second connection connects the renderFrame_Cam1_Done signal to the capture() slot.
+            /// This completes the loop so that when the Main GUI has finished displaying the frame,
+            /// it tells the camera to capture another frame
+            ///
+            /// The third connection ties the camera object to its own thread, and by extension, tying all these
+            /// connections to that same thread, so that the camera captures and displays an image all on its own
+            /// thread
+            connect(&Cam1, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_Cam1(Camera*)),Qt::AutoConnection);
+            connect(this, SIGNAL(renderFrame_Cam1_Done()), &Cam1, SLOT(capture()),Qt::AutoConnection);
+            connect(&thread1, SIGNAL(started()), &Cam1, SLOT(capture()));
 
-        Cam1.captureSetup();    //!< Sets up Cam1 capture settings
-        Cam2.captureSetup();    //!< Sets up Cam2 capture settings
 
-        thread1.start();        //!< Initializes thread1 and starts Cam1 stream/display
-        thread2.start();        //!< Initializes thread2 and starts Cam2 stream/display
+            ///Identical to the above set of slots and signals, except for Cam2 and Cam2-specific functions
+            connect(&Cam2, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_Cam2(Camera*)),Qt::AutoConnection);
+            connect(this, SIGNAL(renderFrame_Cam2_Done()), &Cam2, SLOT(capture()), Qt::AutoConnection);
+            connect(&thread2, SIGNAL(started()), &Cam2, SLOT(capture()));
+
+            Cam1.captureSetup();    //!< Sets up Cam1 capture settings
+            Cam2.captureSetup();    //!< Sets up Cam2 capture settings
+
+
+            this->show();
+            thread1.start();        //!< Initializes thread1 and starts Cam1 stream/display
+            thread2.start();        //!< Initializes thread2 and starts Cam2 stream/display
+        }
+        else
+        {
+            Cam1.moveToThread(&thread1);
+            if (Cam1.isWhiteLight())
+            {
+                connect(&Cam1, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_Cam1(Camera*)));
+                connect(this, SIGNAL(renderFrame_Cam1_Done()), &Cam1, SLOT(capture()));
+                connect(&thread1, SIGNAL(started()), &Cam1, SLOT(capture()));
+
+                this->Single_Cameras_is_WL = true;
+                delete ui->NIR_Camera;
+                delete ui->Monochrome;
+            }
+            else if (Cam1.isNearInfrared())
+            {
+                connect(&Cam1, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_Cam2(Camera*)));
+                connect(this, SIGNAL(renderFrame_Cam2_Done()), &Cam1, SLOT(capture()));
+                connect(&thread1, SIGNAL(started()), &Cam1, SLOT(capture()));
+
+                this->Single_Cameras_is_WL = false;
+                Cam1.SetMono16Bit();
+                delete ui->WL_camera;
+                delete ui->Monochrome;
+            }
+            Cam1.captureSetup();
+
+            this->show();
+            thread1.start();
+        }
 
     }
     else
@@ -108,7 +142,7 @@ bool MultiChannelViewer::InitializePv()
         errBox.critical(0,"Error","2 Cameras not found. Please plug in 2 cameras then press Ok to continue.");
         errBox.setFixedSize(500,200);
     }
-    while (PvCameraCount() < 2)
+    while (PvCameraCount() < 1)
     {
         QThread::msleep(100);
         qApp->processEvents();
@@ -124,7 +158,7 @@ bool MultiChannelViewer::ConnectToCam()
     unsigned long     numCameras;
     numCameras = PvCameraListEx(info, 2, NULL, sizeof(tPvCameraInfoEx));
     // Open the first two cameras found, if it’s not already open.
-    if ((numCameras >= 1) && (info[0].PermittedAccess & ePvAccessMaster) && (info[1].PermittedAccess & ePvAccessMaster))
+    if ((numCameras >= 2) && (info[0].PermittedAccess & ePvAccessMaster) && (info[1].PermittedAccess & ePvAccessMaster))
     {
         Cam1.setID(info[0].UniqueId);
         Cam1.setCameraName(info[0].CameraName);
@@ -141,10 +175,20 @@ bool MultiChannelViewer::ConnectToCam()
                 Cam1.copyCamera(Cam2);
                 Cam2.copyCamera(temp);
             }
-
+            this->Two_Cameras_Connected = true;
             return true;
         }
         return false;
+    }
+    if ((numCameras == 1) && (info[0].PermittedAccess & ePvAccessMaster))
+    {
+        Cam1.setID(info[0].UniqueId);
+        Cam1.setCameraName(info[0].CameraName);
+        if (Cam1.GrabHandleFromID())
+        {
+            this->Two_Cameras_Connected = false;
+            return true;
+        }
     }
     return false;
 }
@@ -393,7 +437,8 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
         Video1.WriteFrame(mirror_buffer);
     }
 
-    renderFrame_Cam3(); //!< Renders third screen on GUI
+    if(this->Two_Cameras_Connected)
+        renderFrame_Cam3(); //!< Renders third screen on GUI
 
     delete[] buffer;
     emit renderFrame_Cam1_Done(); //!< Tells WL camera to capture another frame
@@ -672,10 +717,15 @@ void MultiChannelViewer::closeEvent(QCloseEvent *event)
     QThread::sleep(1);
 
     thread1.quit();
-    thread2.quit();
-
     Cam1.captureEnd();
-    Cam2.captureEnd();
+
+    if (this->Two_Cameras_Connected)
+    {
+        thread2.quit();
+        Cam2.captureEnd();
+    }
+        thread2.quit();
+
     delete[] Cam2_Image_Raw;
 
     PvUnInitialize();
@@ -852,14 +902,34 @@ void MultiChannelViewer::on_AutoExposure_stateChanged(int arg1)
     if (arg1 == Qt::Checked)
     {
         this->autoexpose = true;
-        ui->WL_Exposure->setReadOnly(true);
-        ui->NIR_Exposure->setReadOnly(true);
+        if (this->Two_Cameras_Connected)
+        {
+            ui->WL_Exposure->setReadOnly(true);
+            ui->NIR_Exposure->setReadOnly(true);
+        }
+        else
+        {
+            if (this->Single_Cameras_is_WL)
+                ui->WL_Exposure->setReadOnly(true);
+            if (!this->Single_Cameras_is_WL)
+                ui->NIR_Exposure->setReadOnly(true);
+        }
     }
     if (arg1 == Qt::Unchecked)
     {
         this->autoexpose = false;
-        ui->WL_Exposure->setReadOnly(false);
-        ui->NIR_Exposure->setReadOnly(false);
+        if (this->Two_Cameras_Connected)
+        {
+            ui->WL_Exposure->setReadOnly(false);
+            ui->NIR_Exposure->setReadOnly(false);
+        }
+        else
+        {
+            if (this->Single_Cameras_is_WL)
+                ui->WL_Exposure->setReadOnly(false);
+            if (!this->Single_Cameras_is_WL)
+                ui->NIR_Exposure->setReadOnly(false);
+        }
     }
 }
 

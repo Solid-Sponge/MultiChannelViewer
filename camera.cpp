@@ -17,7 +17,7 @@ Camera::Camera(unsigned long UniqueID)
 Camera::~Camera()
 {
    // for (int i = 0; i < FRAMESCOUNT; i++)
-        delete[] static_cast<unsigned char*>(Frames[0].ImageBuffer);
+        //delete[] static_cast<unsigned char*>(Frames[0].ImageBuffer);
    PvCommandRun(this->Handle, "AcquisitionStop");
 
 }
@@ -197,9 +197,9 @@ void Camera::SetMono16Bit()
 bool Camera::isWhiteLight()
 {
     char PartVer[20];
-    PvAttrStringGet(this->Handle, "PartVersion",PartVer, 20, NULL);
+    tPvErr uwut = PvAttrStringGet(this->Handle, "PartVersion",PartVer, 20, NULL);
     unsigned long PartNum;
-    PvAttrUint32Get(this->Handle, "PartNumber", &PartNum);
+    tPvErr uwut2 = PvAttrUint32Get(this->Handle, "PartNumber", &PartNum);
 
     if ((std::strcmp(PartVer, "A") == 0) && PartNum == 20007)
         return true;

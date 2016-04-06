@@ -227,6 +227,8 @@ private:
     Ui::MultiChannelViewer *ui;
     Camera Cam1;                    //!< White Light Camera
     Camera Cam2;                    //!< Near Infrared Camera
+    bool Two_Cameras_Connected;     //!< True if two cameras are connected, false otherwise
+    bool Single_Cameras_is_WL;      //!< True if one camera is connected and is WL, false otherwise
 
     QImage* Cam1_Image;             //!< WL Cam frame data for third screen
     QImage* Cam2_Image;             //!< NIR Cam frame data for third screen

@@ -63,7 +63,7 @@ macx: PRE_TARGETDEPS += /usr/local/lib/libavcodec.a
 
 macx: LIBS += -L/usr/local/lib -lavdevice
 INCLUDEPATH += /usr/local/include
-DEPENDPATH += /usr/local/include
+DEPENDPATH += /usr/locgal/include
 macx: PRE_TARGETDEPS += /usr/local/lib/libavdevice.a
 
 macx: LIBS += -L/usr/local/lib -lavfilter
