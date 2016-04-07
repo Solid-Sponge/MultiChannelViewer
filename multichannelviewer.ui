@@ -137,7 +137,7 @@
     <property name="title">
      <string>WL Camera</string>
     </property>
-    <widget class="QWidget" name="">
+    <widget class="QWidget" name="layoutWidget">
      <property name="geometry">
       <rect>
        <x>10</x>
@@ -216,7 +216,7 @@
     <property name="title">
      <string>NIR Camera</string>
     </property>
-    <widget class="QWidget" name="">
+    <widget class="QWidget" name="layoutWidget">
      <property name="geometry">
       <rect>
        <x>10</x>
@@ -332,12 +332,12 @@
     <property name="geometry">
      <rect>
       <x>770</x>
-      <y>480</y>
+      <y>481</y>
       <width>174</width>
-      <height>170</height>
+      <height>144</height>
      </rect>
     </property>
-    <layout class="QVBoxLayout" name="verticalLayout_2">
+    <layout class="QVBoxLayout" name="NIR_Thresholds">
      <item>
       <widget class="QSlider" name="maxVal">
        <property name="maximum">
@@ -355,7 +355,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QLabel" name="label_2">
+      <widget class="QLabel" name="text_Max_Thresh_Val">
        <property name="text">
         <string>Maximum Threshold Value</string>
        </property>
@@ -375,12 +375,24 @@
       </widget>
      </item>
      <item>
-      <widget class="QLabel" name="label">
+      <widget class="QLabel" name="text_Min_Thresh_Val">
        <property name="text">
         <string>Minimum Threshold Value</string>
        </property>
       </widget>
      </item>
+    </layout>
+   </widget>
+   <widget class="QWidget" name="">
+    <property name="geometry">
+     <rect>
+      <x>770</x>
+      <y>640</y>
+      <width>171</width>
+      <height>56</height>
+     </rect>
+    </property>
+    <layout class="QVBoxLayout" name="Opacity">
      <item>
       <widget class="QSlider" name="opacitySlider">
        <property name="maximum">
@@ -401,7 +413,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QLabel" name="label_3">
+      <widget class="QLabel" name="text_Opacity">
        <property name="text">
         <string>Opacity</string>
        </property>
@@ -409,6 +421,19 @@
      </item>
     </layout>
    </widget>
+   <zorder>cam_1</zorder>
+   <zorder>cam_2</zorder>
+   <zorder>cam_3</zorder>
+   <zorder>Monochrome</zorder>
+   <zorder>maxVal_spinbox</zorder>
+   <zorder>minVal_spinbox</zorder>
+   <zorder>WL_camera</zorder>
+   <zorder>NIR_Camera</zorder>
+   <zorder>layoutWidget</zorder>
+   <zorder>AutoExposure</zorder>
+   <zorder>layoutWidget</zorder>
+   <zorder>text_Opacity</zorder>
+   <zorder>text_Opacity</zorder>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">

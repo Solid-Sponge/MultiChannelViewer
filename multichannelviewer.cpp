@@ -87,8 +87,22 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
                 connect(&thread1, SIGNAL(started()), &Cam1, SLOT(capture()));
 
                 this->Single_Cameras_is_WL = true;
+
                 delete ui->NIR_Camera;
+                delete ui->cam_2;
+                delete ui->cam_3;
                 delete ui->Monochrome;
+
+                delete ui->maxVal_spinbox;
+                delete ui->maxVal;
+                delete ui->text_Max_Thresh_Val;
+
+                delete ui->minVal_spinbox;
+                delete ui->minVal;
+                delete ui->text_Min_Thresh_Val;
+
+                delete ui->opacitySlider;
+                delete ui->text_Opacity;
             }
             else if (Cam1.isNearInfrared())
             {
@@ -99,7 +113,11 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
                 this->Single_Cameras_is_WL = false;
                 Cam1.SetMono16Bit();
                 delete ui->WL_camera;
+                delete ui->cam_1;
+                delete ui->cam_3;
                 delete ui->Monochrome;
+                delete ui->opacitySlider;
+                delete ui->text_Opacity;
             }
             Cam1.captureSetup();
 
@@ -134,21 +152,6 @@ bool MultiChannelViewer::InitializePv()
         errBox.setFixedSize(500,200);
         return false;
     }
-
-    QThread::sleep(3);
-    if (PvCameraCount() < 2)
-    {
-        QMessageBox errBox;
-        errBox.critical(0,"Error","2 Cameras not found. Please plug in 2 cameras then press Ok to continue.");
-        errBox.setFixedSize(500,200);
-    }
-    while (PvCameraCount() < 1)
-    {
-        QThread::msleep(100);
-        qApp->processEvents();
-    }
-
-    std::cout << "Cameras Found: " << PvCameraCount() << std::endl;
     return true;
 }
 
@@ -156,7 +159,34 @@ bool MultiChannelViewer::ConnectToCam()
 {
     tPvCameraInfoEx   info[2];
     unsigned long     numCameras;
-    numCameras = PvCameraListEx(info, 2, NULL, sizeof(tPvCameraInfoEx));
+
+    int returnVal = QMessageBox::Retry;
+    QMessageBox* WaitForCamera = new QMessageBox();
+    WaitForCamera->setModal(true);
+    WaitForCamera->setStandardButtons(QMessageBox::Ok | QMessageBox::Retry);
+    WaitForCamera->setDefaultButton(QMessageBox::Ok);
+    WaitForCamera->setWindowTitle("Waiting for Cameras");
+    WaitForCamera->setText("Cameras found: ");
+    QThread::sleep(3);
+
+    while (returnVal == QMessageBox::Retry)
+    {
+        numCameras = PvCameraListEx(info, 2, NULL, sizeof(tPvCameraInfoEx));
+        QThread::msleep(500);
+        QString CamerasFound;
+
+        if (numCameras == 0)
+            CamerasFound = tr("\n");
+        if (numCameras == 1)
+            CamerasFound = tr("%1\n").arg(info[0].CameraName);
+        if (numCameras == 2)
+            CamerasFound = tr("%1\n%2\n").arg(info[0].CameraName, info[1].CameraName);
+
+        WaitForCamera->setInformativeText(CamerasFound);
+        returnVal = WaitForCamera->exec();
+    }
+    delete WaitForCamera;
+
     // Open the first two cameras found, if it’s not already open.
     if ((numCameras >= 2) && (info[0].PermittedAccess & ePvAccessMaster) && (info[1].PermittedAccess & ePvAccessMaster))
     {
