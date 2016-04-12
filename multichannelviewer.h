@@ -60,6 +60,7 @@
 #include <PvRegIo.h>
 #include <camera.h>
 #include <FFMPEGClass.h>
+#include <autoexpose.h>
 
 namespace Ui {
 class MultiChannelViewer;
@@ -110,31 +111,6 @@ public:
      */
     bool ConnectToCam();    //!< TODO: Implement a way of discriminating between NIR and WL cams
 
-    /**
-     * @brief Autoexposure algorithm based on the relative intensities of pixel data
-     *
-     * AutoExposure() reads the latest image frames (stored in Cam1_Image and
-     * Cam2_Image), and adjusts their respective cameras' exposure time. This is done
-     * by attempting to map 95% of pixel intensity at an exact threshold. If it detects
-     * that the overall intensity is higher than the threshold, the exposure is reduced,
-     * and if the overall intensity is lower than the threshold, the exposure is increased.
-     *
-     * Min and Max caps are set to prevent integrating for too short or too long. Additionally,
-     * a check is placed to prevent the exposure time from increasing more or less than 30% of
-     * the previous value.
-     *
-     * This function is thread-safe, and in fact is recommended to be run in a seperate thread.
-     * The latest frame datas have mutex locks to prevent the data from being overwritten while
-     * copying the data to stack memory.
-     *
-     * Currently, the NIR camera tends to max out the exposure time as it is constantly signal-starved.
-     * The WL camera sits at a comfortable frame-rate, but the exposure time usually ends up a bit lower
-     * than it could be, resulting in a slightly starved signal from distances,
-     *
-     */
-    void AutoExposure();
-
-
 signals:
 
     /**
@@ -146,6 +122,10 @@ signals:
      * @brief Emitted when frame from Cam2 has finished rendering
      */
     void renderFrame_Cam2_Done();
+
+    void SIG_AutoExpose(QImage *WL_Image, unsigned char* NIR_Raw_Image);
+
+    void SIG_AutoExpose_WL(QImage *WL_Image);
 
 public slots:
 
@@ -231,7 +211,7 @@ private:
     bool Single_Cameras_is_WL;      //!< True if one camera is connected and is WL, false otherwise
 
     QImage* Cam1_Image;             //!< WL Cam frame data for third screen
-    QImage* Cam2_Image;             //!< NIR Cam frame data for third screen
+    QImage* Cam2_Image;             //!< NIR Cam frame data for third screen (False colorized)
     unsigned char* Cam2_Image_Raw;  //!< NIR Cam raw frame date (16-bit monochrome)
 
     QThread thread1;                //!< WL Cam streaming thread
@@ -255,6 +235,7 @@ private:
     bool monochrome;                //!< If true, displays monochrome underlay in third screen
     double opacity_val;             //!< Value of opacity overlay for third screen
 
+    AutoExpose *exposure_control;
     bool autoexpose;                //!< If true, uses custom autoexposure algorithm
     unsigned int exposure_WL;       //!< WL cam exposure value
     unsigned int exposure_NIR;      //!< NIR cam exposure value

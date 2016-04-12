@@ -15,13 +15,15 @@ TEMPLATE = app
 SOURCES += main.cpp\
         multichannelviewer.cpp \
     camera.cpp \
-    FFMPEGClass.cpp
+    FFMPEGClass.cpp \
+    autoexpose.cpp
 
 HEADERS  += multichannelviewer.h \
     PvApi.h \
     PvRegIo.h \
     camera.h \
-    FFMPEGClass.h
+    FFMPEGClass.h \
+    autoexpose.h
 
 
 FORMS    += multichannelviewer.ui

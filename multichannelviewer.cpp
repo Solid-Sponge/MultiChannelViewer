@@ -40,6 +40,8 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
     {
         if (this->Two_Cameras_Connected)
         {
+            this->exposure_control = new AutoExpose(&Cam1, &Cam2);
+
             Cam1.moveToThread(&thread1); //!< Assigns Cam1 to Thread1
             Cam2.moveToThread(&thread2); //!< Assigns Cam2 to Thread2
 
@@ -69,6 +71,9 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
             connect(this, SIGNAL(renderFrame_Cam2_Done()), &Cam2, SLOT(capture()), Qt::AutoConnection);
             connect(&thread2, SIGNAL(started()), &Cam2, SLOT(capture()));
 
+            connect(this, SIGNAL(SIG_AutoExpose(QImage*,unsigned char*)),
+                    exposure_control, SLOT(AutoExposure_Two_Cams(QImage*,unsigned char*)), Qt::DirectConnection);
+
             Cam1.captureSetup();    //!< Sets up Cam1 capture settings
             Cam2.captureSetup();    //!< Sets up Cam2 capture settings
 
@@ -79,12 +84,16 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
         }
         else
         {
+            this->exposure_control = new AutoExpose(&Cam1);
+
             Cam1.moveToThread(&thread1);
             if (Cam1.isWhiteLight())
             {
                 connect(&Cam1, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_Cam1(Camera*)));
                 connect(this, SIGNAL(renderFrame_Cam1_Done()), &Cam1, SLOT(capture()));
                 connect(&thread1, SIGNAL(started()), &Cam1, SLOT(capture()));
+                connect(this, SIGNAL(SIG_AutoExpose_WL(QImage*)),
+                        exposure_control, SLOT(AutoExposure_WL_Cam(QImage*)), Qt::DirectConnection);
 
                 this->Single_Cameras_is_WL = true;
 
@@ -223,179 +232,10 @@ bool MultiChannelViewer::ConnectToCam()
     return false;
 }
 
-void MultiChannelViewer::AutoExposure()
-{
-    /// The algorithm used here is relatively complex, and functions as a self-correcting algorithm.
-    /// The first step is to acquire the latest two frames from the cameras. Since the latest frame
-    /// is constantly updating, mutexes are put in place to prevent the data from updating until the
-    /// frame data has been copied to local storage (freeing access to the lastest frame data as early
-    /// as possible)
-    ///
-    /// Afterwards, the next step is to convert both frames into a quantifiable scalar format for comparison.
-    /// The easiest way to do that is by comparing their intensities. The NIR image is in a 16-bit Monochrome
-    /// format ranging from [0-4096], so each pixel corresponds directly to one intensity value.
-    /// The WL image however, is in a 24-bit RGB format (8 bits per color) ranging from [0-255] each channel.
-    /// The WL image is converted into 8-bit Monochrome format [0-256] by taking a weighted sum from each
-    /// channel, keeping in mind that the human eye sees green better than red, which it sees better than blue.
-    /// However, the NIR image has a higher precision (16-bit) than the new WL image (8-bit). The WL image is
-    /// expanded to a domain of [0-4096] (16-bit) by multiplying each individual pixel by 16.
-    ///
-    /// **** Dev note: In hindsight, I'm not sure if expanding the domain is necessary. Might be removed ****
-    /// **** in future                                                                                   ****
-    ///
-    /// Once both images are in these formats, a histogram is generated for each image. This is implemented as
-    /// a simple array of 4096 elements, each index corresponding to a pixel intensity. It then goes through
-    /// each pixel and increments the value at the index corresponding to the intensity value by one.
-    /// (Ex: A value of 2000 in a pixel, Histogram_WL[2000]++)
-    ///
-    /// There's only a slight catch. When the endoscope is placed on the camera, the corners of the camera
-    /// are blocked, as the endoscope has a tiny viewing space. In order to avoid counting those pixels, a
-    /// mask is implemented. This mask is really simple, as it just ignores any pixels with intensities less
-    /// than 32 (under the assumption that WL signal is readily available and any really low signal tends to
-    /// correspond with the corners of the image). It also keeps track of the amount of pixels in the frame
-    /// that correspond to actual signal data (in pixel_count), as opposed to corner pixels.
-    ///
-    /// As far as the NIR cam is concerned, the camera is constantly starved for signals, and the ability
-    /// to distinguish between the corners of the camera and the signal itself is severely diminished as
-    /// a result. The easiest remedy is to just borrow the same mask from the WL camera, under the assumption
-    /// that both cameras are aligned. The histogram counts for the NIR take place in the same
-    /// conditional that checks for whether a pixel is a corner-pixel or a valid one.
-    ///
-    /// Finally, an integral (more of a sum) is taken across both histograms up to the 95% area.
-    /// What this means is each value in each index of the histogram is added up until this value reaches
-    /// 95% of the valid amount of pixels (not corner pixels). When 95% is reached, the index value is recorded
-    /// and the loop breaks. This value is known as the histogram cutoff. The reason 95% was chosen was to
-    /// eliminate outliers at the very top due to light reflection.
-    /// (Ex: Sum += Histogram[0].....Histogram[i] where i is the earliest index value that causes Sum
-    ///  to be equal to 95% of pixel_count)
-    ///
-    /// The histogram cutoff value is compared to a constant value predefined as AUTOEXPOSURE_CUTOFF.
-    /// The new exposure value is calculated based off this formula:
-    ///
-    ///     new_exposure = {1 - (Cutoff - AUTOEXPOSURE_CUTOFF)/ AUTOEXPOSURE_CUTOFF} * old_exposure
-    ///
-    /// Limits are set to ensure that the new exposure never increases or decreases by more than 30%.
-    /// Additional lower and upper bounds are set individually for the WL camera and NIR camera to ensure
-    /// that their corresponding exposure times never goes below or above certain values
-
-    if (!autoexpose) //!< Not needed but just in case
-        return;
-
-    unsigned short* Image_WL_data = new unsigned short[HEIGHT*WIDTH];
-    unsigned short* Image_NIR_data = new unsigned short[HEIGHT*WIDTH];
-
-    //Mutex1.lock();
-    //QMutexLocker *Locker = new QMutexLocker(&Mutex1);
-    QImage Image_WL = Cam1_Image->copy();
-    //delete Locker;
-    //Mutex1.unlock();
-
-    //Mutex2.lock();
-    //Locker = new QMutexLocker(&Mutex2);
-    std::memcpy(Image_NIR_data, Cam2_Image_Raw, HEIGHT*WIDTH*2);
-    //delete Locker;
-    //Mutex2.unlock();
-
-    unsigned char* Image_WL_Original = Image_WL.bits();
-    for (int i = 0; i < Image_WL.height()*Image_WL.width(); i++)
-    {
-        double r = Image_WL_Original[0];
-        double g = Image_WL_Original[1];
-        double b = Image_WL_Original[2];
-        Image_WL_data[i] = static_cast<unsigned short>((0.21*r + 0.72*g + 0.07*b)*16); //!< Converts WL RGB 24-bit to 16-bit Mono
-        Image_WL_Original = Image_WL_Original + 3;
-    }
-
-    int Histogram_WL[4096] = {0};
-    int Histogram_NIR[4096] = {0};
-    int pixel_count = 0;
-
-    for (int i = 0; i < Image_WL.height()*Image_WL.width(); i++)
-    {
-        if (Image_WL_data[i] > 32)
-        {
-            unsigned short WL = static_cast<unsigned short>(Image_WL_data[i]);
-            Histogram_WL[WL]++;
-            //Histogram_WL[Image_WL_data[i]]++;
-            unsigned short NIR = static_cast<unsigned short>(Image_NIR_data[i]);
-            Histogram_NIR[NIR]++;
-            //Histogram_NIR[Image_NIR_data[i]]++;
-            pixel_count++;
-        }
-    }
-
-    int Histogram_WL_integral = 0;
-    int Histogram_NIR_integral = 0;
-    int Histogram_WL_95percent_cutoff = 0;
-    int Histogram_NIR_95percent_cutoff = 0;
-
-    for (int i = 0; i < 4096; i++)
-    {
-        Histogram_WL_integral += Histogram_WL[i];
-        if (Histogram_WL_integral > 0.95*pixel_count)
-        {
-            Histogram_WL_95percent_cutoff = i;
-            break;
-        }
-    }
-    for (int i = 0; i < 4096; i++)
-    {
-        Histogram_NIR_integral += Histogram_NIR[i];
-        if (Histogram_NIR_integral > 0.95*pixel_count)
-        {
-            Histogram_NIR_95percent_cutoff = i;
-            break;
-        }
-    }
-    double exposure_WL_multiplier =
-            1 - ((double) Histogram_WL_95percent_cutoff - AUTOEXPOSURE_CUTOFF)/AUTOEXPOSURE_CUTOFF;
-    double exposure_NIR_multiplier =
-            1 - ((double) Histogram_NIR_95percent_cutoff - AUTOEXPOSURE_CUTOFF)/AUTOEXPOSURE_CUTOFF;
-
-    if (exposure_WL_multiplier > 1.1)
-        exposure_WL_multiplier = 1.1;
-    if (exposure_WL_multiplier < 0.9)
-        exposure_WL_multiplier = 0.9;
-
-    if (exposure_NIR_multiplier > 1.1)
-        exposure_NIR_multiplier = 1.1;
-    if (exposure_NIR_multiplier < 0.9)
-        exposure_NIR_multiplier = 0.9;
-
-    unsigned int new_exposure_WL = (double) this->exposure_WL*exposure_WL_multiplier;
-    unsigned int new_exposure_NIR = (double) this->exposure_NIR*exposure_NIR_multiplier;
-
-    if (new_exposure_WL < 100)
-        new_exposure_WL = 100;
-    if (new_exposure_WL > 120000) //!< 33334 to ensure >30FPS. 120000 to ensure >8FPS
-        new_exposure_WL = 120000;
-    //if (new_exposure_WL > 550000)
-    //    new_exposure_WL = 550000;
-
-    if (new_exposure_NIR < 100)
-        new_exposure_NIR = 100;
-    if (new_exposure_NIR > 550000)
-        new_exposure_NIR = 550000;
-
-    this->exposure_WL = new_exposure_WL;
-    this->exposure_NIR = new_exposure_NIR;
-
-    tPvHandle* Cam1_Handle = Cam1.getHandle();
-    tPvHandle* Cam2_Handle = Cam2.getHandle();
-    PvAttrUint32Set(*Cam1_Handle, "ExposureValue", this->exposure_WL);
-    PvAttrUint32Set(*Cam2_Handle, "ExposureValue", this->exposure_NIR);
-
-    //if (new_exposure_WL)
-    delete[] Image_WL_data;
-    delete[] Image_NIR_data;
-}
-
-
 void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
 {
     tPvFrame* FramePtr1 = cam->getFramePtr();
     tPvHandle* CamHandle = cam->getHandle();
-    //PvAttrUint32Set(*CamHandle, "ExposureValue", 15000);
 
     unsigned long line_padding = ULONG_PADDING(FramePtr1->Width*3);
     unsigned long line_size = (FramePtr1->Width*3) + line_padding;
@@ -424,7 +264,7 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
             imgFrame.setPixel(j, i, color); //!< Sets pixel with (r,g,b) at location j,i
         }
     }
-    imgFrame = imgFrame.mirrored(true, false);  //!< Flips WL image. Needed due to dicroic
+    imgFrame = imgFrame.mirrored(true, false);  //!< Flips WL image. Needed due to dichroic
     ui->cam_1->setScaledContents(true);
     ui->cam_1->setPixmap(QPixmap::fromImage(imgFrame));
     ui->cam_1->show(); //!< Displays image on Main GUI
@@ -459,16 +299,20 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
     }
     if (recording) //!< Starts recording
     {
-        //unsigned char* mirror_buffer = new unsigned char[buffer_size];
-        //unsigned char* mirror_buffer_Ptr = mirror_buffer;
         unsigned char* mirror_buffer;
         mirror_buffer = imgFrame.bits();
-        //Video1.WriteFrame(buffer);
-        Video1.WriteFrame(mirror_buffer);
+
+        for (int i = 0; i < static_cast<int>((this->exposure_WL / 1000000.0)*24 + 1); i++)
+            Video1.WriteFrame(mirror_buffer);
     }
 
     if(this->Two_Cameras_Connected)
         renderFrame_Cam3(); //!< Renders third screen on GUI
+    else
+    {
+        if (this->autoexpose)
+            emit SIG_AutoExpose_WL(this->Cam1_Image);
+    }
 
     delete[] buffer;
     emit renderFrame_Cam1_Done(); //!< Tells WL camera to capture another frame
@@ -604,7 +448,8 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 
     if (recording)
     {
-        Video2.WriteFrame(buffer);
+        for (int i = 0; i < static_cast<int>((this->exposure_NIR / 1000000.0)*24 + 1); i++)
+                Video2.WriteFrame(buffer);
     }
 
     //renderFrame_Cam3(); //!< Doesn't need to be called in both render functions.
@@ -682,7 +527,8 @@ void MultiChannelViewer::renderFrame_Cam3()
     qApp->processEvents();
 
     if (autoexpose)
-        QtConcurrent::run(this, &MultiChannelViewer::AutoExposure);
+        //QtConcurrent::run(this, &MultiChannelViewer::AutoExposure);
+        emit SIG_AutoExpose(this->Cam1_Image, this->Cam2_Image_Raw);
 
     if (screenshot_cam3)
     {
@@ -722,7 +568,8 @@ void MultiChannelViewer::renderFrame_Cam3()
 
         for (int i = 0; i < WIDTH*HEIGHT; i++)
         {
-            RGB24_ptr[0] = Cam1_Image_ptr[0] * (1.0-opacity_val) + Cam2_Image_ptr[0] * (opacity_val);
+            RGB24_ptr[0] = Cam1_Image_ptr[0] * (1.0
+                                                -opacity_val) + Cam2_Image_ptr[0] * (opacity_val);
             RGB24_ptr[1] = Cam1_Image_ptr[1] * (1.0-opacity_val) + Cam2_Image_ptr[1] * (opacity_val);
             RGB24_ptr[2] = Cam1_Image_ptr[2] * (1.0-opacity_val) + Cam2_Image_ptr[2] * (opacity_val);
             RGB24_ptr += 3;
@@ -731,9 +578,15 @@ void MultiChannelViewer::renderFrame_Cam3()
         }
 
         //RGB24 = RGB24.convertToFormat(QImage::Format_RGB888);
-        Video3.WriteFrame(RGB24.bits());
+        int exposure = (this->exposure_WL < this->exposure_NIR) ? this->exposure_WL : this->exposure_NIR;
+        for (int i = 0; i < static_cast<int>((exposure / 1000000.0)*24 + 1); i++)
+            Video3.WriteFrame(RGB24.bits());
     }
 }
+
+/////////////////////////////////////////////////////////////
+///////// GUI related stuff below (event handlers) //////////
+/////////////////////////////////////////////////////////////
 
 void MultiChannelViewer::closeEvent(QCloseEvent *event)
 {
@@ -844,40 +697,62 @@ void MultiChannelViewer::on_Record_toggled(bool checked)
 {
     if (checked)
     {
-        QString timestamp_filename_WL = QDateTime::currentDateTime().toString();
-        timestamp_filename_WL.append("_WL.avi");
-        timestamp_filename_WL.replace(QString(" "), QString("_"));
-        timestamp_filename_WL.replace(QString(":"), QString("-"));
-
-        QString timestamp_filename_NIR = QDateTime::currentDateTime().toString();
-        timestamp_filename_NIR.append("_NIR.avi");
-        timestamp_filename_NIR.replace(QString(" "), QString("_"));
-        timestamp_filename_NIR.replace(QString(":"), QString("-"));
-
-        QString timestamp_filename_WL_NIR = QDateTime::currentDateTime().toString();
-        timestamp_filename_WL_NIR.append("_WL+NIR.avi");
-        timestamp_filename_WL_NIR.replace(QString(" "), QString("_"));
-        timestamp_filename_WL_NIR.replace(QString(":"), QString("-"));
-
+        QString timestamp_filename_WL;
+        QString timestamp_filename_NIR;
+        QString timestamp_filename_WL_NIR;
 
         #ifdef __APPLE__
         system("mkdir ../../../Video");
-        timestamp_filename_WL = QString("../../../Video/") + timestamp_filename_WL;
-        timestamp_filename_NIR = QString("../../../Video/") + timestamp_filename_NIR;
-        timestamp_filename_WL_NIR = QString("../../../Video/") + timestamp_filename_WL_NIR;
         #endif
 
-        char* filename_WL = (char*) timestamp_filename_WL.toStdString().c_str();
-        this->Video1.SetupVideo(filename_WL, 640, 480, 15, 2, 750000); //bitrate = 40000000
+        if (this->Two_Cameras_Connected || this->Single_Cameras_is_WL)
+        {
+            timestamp_filename_WL = QDateTime::currentDateTime().toString();
+            timestamp_filename_WL.append("_WL.avi");
+            timestamp_filename_WL.replace(QString(" "), QString("_"));
+            timestamp_filename_WL.replace(QString(":"), QString("-"));
 
-        char* filename_NIR = (char*) timestamp_filename_NIR.toStdString().c_str();
-        this->Video2.SetupVideo(filename_NIR, 640, 480, 15, 2, 750000);
+            #ifdef __APPLE__
+            timestamp_filename_WL = QString("../../../Video/") + timestamp_filename_WL;
+            #endif
 
-        char* filename_WL_NIR = (char*) timestamp_filename_WL_NIR.toStdString().c_str();
-        this->Video3.SetupVideo(filename_WL_NIR, 640, 480, 15, 2, 750000);
+            char* filename_WL = (char*) timestamp_filename_WL.toStdString().c_str();
+            this->Video1.SetupVideo(filename_WL, 640, 480, 12, 2, 750000); //bitrate = 40000000
+        }
+
+        if (this->Two_Cameras_Connected || !this->Single_Cameras_is_WL)
+        {
+            timestamp_filename_NIR = QDateTime::currentDateTime().toString();
+            timestamp_filename_NIR.append("_NIR.avi");
+            timestamp_filename_NIR.replace(QString(" "), QString("_"));
+            timestamp_filename_NIR.replace(QString(":"), QString("-"));
+
+            #ifdef __APPLE__
+            timestamp_filename_NIR = QString("../../../Video/") + timestamp_filename_NIR;
+            #endif
+
+            char* filename_NIR = (char*) timestamp_filename_NIR.toStdString().c_str();
+            this->Video2.SetupVideo(filename_NIR, 640, 480, 12, 2, 750000);
+        }
+
+        if (this->Two_Cameras_Connected)
+        {
+            timestamp_filename_WL_NIR = QDateTime::currentDateTime().toString();
+            timestamp_filename_WL_NIR.append("_WL+NIR.avi");
+            timestamp_filename_WL_NIR.replace(QString(" "), QString("_"));
+            timestamp_filename_WL_NIR.replace(QString(":"), QString("-"));
+
+            #ifdef __APPLE__
+            timestamp_filename_WL_NIR = QString("../../../Video/") + timestamp_filename_WL_NIR;
+            #endif
+
+            char* filename_WL_NIR = (char*) timestamp_filename_WL_NIR.toStdString().c_str();
+            this->Video3.SetupVideo(filename_WL_NIR, 640, 480, 12, 2, 750000);
+        }
 
         recording = true;
     }
+
     if (!checked)
     {
         recording = false;
@@ -965,7 +840,7 @@ void MultiChannelViewer::on_AutoExposure_stateChanged(int arg1)
 
 void MultiChannelViewer::on_WL_Exposure_valueChanged(int arg1)
 {
-    this->exposure_WL = static_cast<unsigned int>(arg1);
+    this->exposure_control->ChangeExposure_WL(static_cast<unsigned int>(arg1));
     tPvHandle *cam = Cam1.getHandle();
     if (cam != NULL)
         PvAttrUint32Set(*cam, "ExposureValue", arg1);
@@ -973,7 +848,7 @@ void MultiChannelViewer::on_WL_Exposure_valueChanged(int arg1)
 
 void MultiChannelViewer::on_NIR_Exposure_valueChanged(int arg1)
 {
-    this->exposure_NIR = static_cast<unsigned int>(arg1);
+    this->exposure_control->ChangeExposure_NIR(static_cast<unsigned int>(arg1));
     tPvHandle *cam = Cam2.getHandle();
     if (cam != NULL)
         PvAttrUint32Set(*cam, "ExposureValue", arg1);
