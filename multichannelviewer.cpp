@@ -118,6 +118,8 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
                 connect(&Cam1, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_Cam2(Camera*)));
                 connect(this, SIGNAL(renderFrame_Cam2_Done()), &Cam1, SLOT(capture()));
                 connect(&thread1, SIGNAL(started()), &Cam1, SLOT(capture()));
+                connect(this, SIGNAL(SIG_AutoExpose_NIR(unsigned char*)),
+                        exposure_control, SLOT(AutoExposure_NIR_Cam(unsigned char*)), Qt::DirectConnection);
 
                 this->Single_Cameras_is_WL = false;
                 Cam1.SetMono16Bit();
@@ -414,16 +416,12 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
     ui->cam_2->setPixmap(QPixmap::fromImage(imgFrame));
     ui->cam_2->show();
 
-
-   // Mutex2.lock();
     *Cam2_Image = imgFrame;
-  //  Mutex2.unlock();
-
-    //Mutex2.lock();
-    //QMutexLocker *Locker = new QMutexLocker(&Mutex2);
     std::memcpy(Cam2_Image_Raw, FramePtr1->ImageBuffer, FramePtr1->ImageBufferSize);
-    //delete Locker;
-    //Mutex2.unlock();
+
+    if (!this->Two_Cameras_Connected && this->autoexpose)
+        emit SIG_AutoExpose_NIR(this->Cam2_Image_Raw);
+
 
     qApp->processEvents();
 
@@ -849,7 +847,8 @@ void MultiChannelViewer::on_WL_Exposure_valueChanged(int arg1)
 void MultiChannelViewer::on_NIR_Exposure_valueChanged(int arg1)
 {
     this->exposure_control->ChangeExposure_NIR(static_cast<unsigned int>(arg1));
-    tPvHandle *cam = Cam2.getHandle();
+    tPvHandle *cam;
+    cam = (this->Two_Cameras_Connected) ? this->Cam2.getHandle() : this->Cam1.getHandle();
     if (cam != NULL)
         PvAttrUint32Set(*cam, "ExposureValue", arg1);
 }

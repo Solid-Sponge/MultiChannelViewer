@@ -241,3 +241,64 @@ void AutoExpose::AutoExposure_WL_Cam(QImage *Cam1_Image)
 
     delete[] Image_WL_data;
 }
+
+void AutoExpose::AutoExposure_NIR_Cam(unsigned char* Cam2_Image_Raw)
+{
+
+    unsigned short* Image_NIR_data = new unsigned short[HEIGHT*WIDTH];
+
+    //Mutex2.lock();
+    //Locker = new QMutexLocker(&Mutex2);
+    std::memcpy(Image_NIR_data, Cam2_Image_Raw, HEIGHT*WIDTH*2);
+    //delete Locker;
+    //Mutex2.unlock();
+
+    int Histogram_NIR[4096] = {0};
+    int pixel_count = 0;
+
+    for (int i = 0; i < HEIGHT*WIDTH; i++)
+    {
+        if (Image_NIR_data[i] > 6)
+        {
+            unsigned short NIR = static_cast<unsigned short>(Image_NIR_data[i]);
+            Histogram_NIR[NIR]++;
+            pixel_count++;
+        }
+    }
+
+    int Histogram_NIR_integral = 0;
+    int Histogram_NIR_95percent_cutoff = 0;
+
+    for (int i = 0; i < 4096; i++)
+    {
+        Histogram_NIR_integral += Histogram_NIR[i];
+        if (Histogram_NIR_integral > 0.95*pixel_count)
+        {
+            Histogram_NIR_95percent_cutoff = i;
+            break;
+        }
+    }
+
+    double exposure_NIR_multiplier =
+            1 - ((double) Histogram_NIR_95percent_cutoff - AUTOEXPOSURE_CUTOFF)/AUTOEXPOSURE_CUTOFF;
+
+    if (exposure_NIR_multiplier > 1.1)
+        exposure_NIR_multiplier = 1.1;
+    if (exposure_NIR_multiplier < 0.9)
+        exposure_NIR_multiplier = 0.9;
+
+    unsigned int new_exposure_NIR = (double) this->exposure_NIR*exposure_NIR_multiplier;
+
+    if (new_exposure_NIR < 100)
+        new_exposure_NIR = 100;
+    if (new_exposure_NIR > 550000)
+        new_exposure_NIR = 550000;
+
+    this->exposure_NIR = new_exposure_NIR;
+    std::cout << "Exposure_NIR: " << exposure_NIR;
+
+    tPvHandle* Cam1_Handle = Cam1->getHandle();
+    PvAttrUint32Set(*Cam1_Handle, "ExposureValue", this->exposure_NIR);
+
+    delete[] Image_NIR_data;
+}

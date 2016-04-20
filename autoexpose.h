@@ -54,9 +54,10 @@ public slots:
      * @param Cam1_Image Latest WL image. Function makes an internal copy.
      */
     void AutoExposure_WL_Cam(QImage* Cam1_Image);
-private:
-    void AutoExposure_NIR_Cam();
 
+    void AutoExposure_NIR_Cam(unsigned char* Cam2_Image_Raw);
+
+private:
     Camera* Cam1;
     Camera* Cam2;
     unsigned int exposure_WL;

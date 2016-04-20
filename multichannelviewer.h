@@ -127,6 +127,8 @@ signals:
 
     void SIG_AutoExpose_WL(QImage *WL_Image);
 
+    void SIG_AutoExpose_NIR(unsigned char* NIR_Raw_Image);
+
 public slots:
 
     /**
