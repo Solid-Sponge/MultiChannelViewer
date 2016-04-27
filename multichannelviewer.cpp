@@ -324,21 +324,64 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 {
     tPvFrame* FramePtr1 = cam->getFramePtr();
     tPvHandle* CamHandle = cam->getHandle();
-    PvAttrUint32Set(*CamHandle, "ExposureValue", this->exposure_NIR);
+    //PvAttrUint32Set(*CamHandle, "ExposureValue", this->exposure_NIR);
 
     unsigned short* rawPtr = static_cast<unsigned short*>(FramePtr1->ImageBuffer);
 
-    /// False coloring. Sets up 7 thresholds divided evenly between minVal and maxVal
+    int Histogram_NIR[4096] = {0};
+    int pixel_count = 0;
+    int thresh_calibrated = 18;
+    for (int i = 0; i < HEIGHT*WIDTH; i++)
+    {
+        if (rawPtr[i] >= thresh_calibrated)
+        {
+            //unsigned short NIR = static_cast<unsigned short>(rawPtr[i]);
+            Histogram_NIR[rawPtr[i]]++;
+            pixel_count++;
+        }
+    }
+
+    /// False coloring. Sets up 6 thresholds divided evenly between minVal and maxVal
     /// Displays a particular RGB value that corresponds to the intensity of the pixels
-    int thresh1,thresh2,thresh3,thresh4,thresh5,thresh6,thresh7;
-    thresh1 = minVal;
-    thresh7 = maxVal;
-    int space = (thresh7 - thresh1)/6;
-    thresh2 = thresh1 + space;
-    thresh3 = thresh2 + space;
-    thresh4 = thresh3 + space;
-    thresh5 = thresh4 + space;
-    thresh6 = thresh5 + space;
+    int thresh1,thresh2,thresh3,thresh4,thresh5,thresh6 = 0;
+    bool thresh2_found = false;
+    bool thresh3_found = false;
+    bool thresh4_found = false;
+    bool thresh5_found = false;
+    bool thresh6_found = false;
+
+    thresh1 = thresh_calibrated;
+    int sum = 0;
+    //Integrate here to find thresholds. Thresholds placed at 17%, 34%, 51%, 68%, 85% of total pixels
+    for (int k = thresh_calibrated; k < 4096; k++)
+    {
+        sum += Histogram_NIR[k];
+        if (!thresh2_found && ((double) sum / (double) pixel_count) > 0.17)
+        {
+            thresh2 = k;
+            thresh2_found = true;
+        }
+        if (!thresh3_found && ((double) sum / (double) pixel_count) > 0.34)
+        {
+            thresh3 = k;
+            thresh3_found = true;
+        }
+        if (!thresh4_found && ((double) sum / (double) pixel_count) > 0.51)
+        {
+            thresh4 = k;
+            thresh4_found = true;
+        }
+        if (!thresh5_found && ((double) sum / (double) pixel_count) > 0.68)
+        {
+            thresh5 = k;
+            thresh5_found = true;
+        }
+        if (!thresh6_found && ((double) sum / (double) pixel_count) > 0.85)
+        {
+            thresh6 = k;
+            thresh6_found = true;
+        }
+    }
 
 
     unsigned char* buffer = new unsigned char[3*FramePtr1->Height*FramePtr1->Width];
@@ -375,26 +418,29 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
             {
                 r = 0;
                 g = 255;
-                b = 255*(1-(counts-thresh3)/space);
+                //b = 255*(1-(counts-thresh3)/space);
+                b = 0;
             }
             else if (counts <= thresh5)
             {
-                r = 255*(counts-thresh4)/space;
+                //r = 255*(counts-thresh4)/space;
+                r = 255;
                 g = 255;
                 b = 0;
             }
             else if (counts <= thresh6)
             {
                 r = 255;
-                g = 255*(1-(counts-thresh5)/space);
+                g = 0;
+                //g = 255*(1-(counts-thresh5)/space);
                 b = 0;
             }
-            else if (counts <= thresh7)
+            /*else if (counts <= thresh7)
             {
                 r = 255;
                 g = 255*(counts-thresh6)/space;
                 b = 255*(counts-thresh6)/space;
-            }
+            }*/
             else
             {
                 r = 255;
@@ -612,7 +658,6 @@ void MultiChannelViewer::closeEvent(QCloseEvent *event)
     PvUnInitialize();
     QApplication::exit(0);
 }
-
 
 void MultiChannelViewer::on_minVal_valueChanged(int value)
 {

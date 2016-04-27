@@ -291,8 +291,8 @@ void AutoExpose::AutoExposure_NIR_Cam(unsigned char* Cam2_Image_Raw)
 
     if (new_exposure_NIR < 100)
         new_exposure_NIR = 100;
-    if (new_exposure_NIR > 550000)
-        new_exposure_NIR = 550000;
+    if (new_exposure_NIR > 330000)
+        new_exposure_NIR = 330000;
 
     this->exposure_NIR = new_exposure_NIR;
     std::cout << "Exposure_NIR: " << exposure_NIR;
