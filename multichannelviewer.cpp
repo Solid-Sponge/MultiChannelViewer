@@ -26,6 +26,7 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
     ui->maxVal->setRange(0,4095);
     ui->minVal->setValue(10);
     ui->maxVal->setValue(200);
+    thresh_calibrated = 2;
     autoexpose = true;
     exposure_WL = 60000;
     exposure_NIR = 500000;
@@ -330,7 +331,7 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 
     int Histogram_NIR[4096] = {0};
     int pixel_count = 0;
-    int thresh_calibrated = 18;
+    //thresh_calibrated = 18;
     for (int i = 0; i < HEIGHT*WIDTH; i++)
     {
         if (rawPtr[i] >= thresh_calibrated)
@@ -628,6 +629,25 @@ void MultiChannelViewer::renderFrame_Cam3()
     }
 }
 
+void MultiChannelViewer::calibrate_NIR_thresh(QAbstractButton *button)
+{
+    QMessageBox::StandardButton btn = Calibrate_Window->standardButton(button);
+    if (btn == QMessageBox::Ok)
+    {
+        unsigned short* Image_NIR_data = new unsigned short[HEIGHT*WIDTH];
+        std::memcpy(Image_NIR_data, Cam2_Image_Raw, HEIGHT*WIDTH*2);
+        unsigned long long sum = 0;
+
+        for (int i = 0; i < HEIGHT*WIDTH; i++)
+        {
+            sum += Image_NIR_data[i];
+        }
+        int average = sum / (HEIGHT*WIDTH);
+        this->thresh_calibrated = average;
+        delete Image_NIR_data;
+    }
+}
+
 /////////////////////////////////////////////////////////////
 ///////// GUI related stuff below (event handlers) //////////
 /////////////////////////////////////////////////////////////
@@ -896,4 +916,16 @@ void MultiChannelViewer::on_NIR_Exposure_valueChanged(int arg1)
     cam = (this->Two_Cameras_Connected) ? this->Cam2.getHandle() : this->Cam1.getHandle();
     if (cam != NULL)
         PvAttrUint32Set(*cam, "ExposureValue", arg1);
+}
+
+void MultiChannelViewer::on_actionCalibrate_NIR_triggered()
+{
+    Calibrate_Window = new QMessageBox();
+    Calibrate_Window->setModal(true);
+    Calibrate_Window->setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+    Calibrate_Window->setDefaultButton(QMessageBox::Ok);
+    Calibrate_Window->setWindowTitle(tr("NIR Calibration"));
+    Calibrate_Window->setText("This will calibrate the NIR thresholds.\nPoint the NIR camera at an empty space.");
+    Calibrate_Window->setAttribute(Qt::WA_DeleteOnClose);
+    Calibrate_Window->open(this, SLOT(calibrate_NIR_thresh(QAbstractButton*)));
 }

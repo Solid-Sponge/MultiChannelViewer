@@ -167,6 +167,8 @@ public slots:
      */
     void renderFrame_Cam3();
 
+    void calibrate_NIR_thresh(QAbstractButton* button);
+
 protected:
     void closeEvent(QCloseEvent *event);
 
@@ -205,6 +207,8 @@ private slots:  /// GUI related functions
 
     void on_NIR_Exposure_valueChanged(int arg1);
 
+    void on_actionCalibrate_NIR_triggered();
+
 private:
     Ui::MultiChannelViewer *ui;
     Camera Cam1;                    //!< White Light Camera
@@ -228,6 +232,7 @@ private:
 
     unsigned short minVal;          //!< False Coloring Minimum Threshold
     unsigned short maxVal;          //!< False Coloring Maximum Threshold
+    int thresh_calibrated;
     bool recording;                 //!< Set to true when Video Encoders are recording
 
     bool screenshot_cam1;           //!< Set to true when screenshotting cam1
@@ -246,6 +251,8 @@ private:
     int region_y_WL;                //!< Y-coordinate of topleft pixel for WL cam
     int region_x_NIR;               //!< X-coordinate of topleft pixel for NIR cam
     int region_y_NIR;               //!< Y-coordinate of topleft pixel for NIR cam
+
+    QMessageBox* Calibrate_Window;
 };
 
 #endif // MULTICHANNELVIEWER_H
