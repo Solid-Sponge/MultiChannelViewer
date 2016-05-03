@@ -34,14 +34,6 @@ DISTFILES += \
 macx: ICON = icon.icns
 
 
-#macx: LIBS += -L$$PWD/./ -lPvAPI
-
-#INCLUDEPATH += $$PWD/.
-#DEPENDPATH += $$PWD/.
-
-macx: LIBS += -L$$PWD -lPvAPI
-
-
 
 QMAKE_LFLAGS += -F//System/Library/Frameworks
 macx: LIBS += -framework CoreFoundation
@@ -50,12 +42,9 @@ macx: LIBS += -framework VideoDecodeAcceleration
 macx: LIBS += -framework CoreMedia
 macx: LIBS += -framework VideoToolbox
 macx: LIBS += -framework Security
-
 macx: LIBS += -lz
 macx: LIBS += -lbz2.1.0
 macx: LIBS += -liconv
-#macx: LIBS += -lswresample
-
 
 
 macx: LIBS += -L/usr/local/lib -lavcodec
@@ -97,3 +86,8 @@ macx: LIBS += -L/usr/local/lib -lx264
 INCLUDEPATH += /usr/local/include
 DEPENDPATH += /usr/local/include
 macx: PRE_TARGETDEPS += /usr/local/lib/libx264.a
+
+macx: LIBS += -L$$PWD/lib/x64/osx -lPvAPI
+INCLUDEPATH += $$PWD/lib/x64/osx
+DEPENDPATH += $$PWD/lib/x64/osx
+macx: PRE_TARGETDEPS += $$PWD/lib/x64/osx/libPvAPI.a

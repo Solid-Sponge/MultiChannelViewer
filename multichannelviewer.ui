@@ -93,38 +93,6 @@
      <string>Monochrome</string>
     </property>
    </widget>
-   <widget class="QSpinBox" name="maxVal_spinbox">
-    <property name="geometry">
-     <rect>
-      <x>960</x>
-      <y>480</y>
-      <width>71</width>
-      <height>24</height>
-     </rect>
-    </property>
-    <property name="maximum">
-     <number>4096</number>
-    </property>
-    <property name="value">
-     <number>200</number>
-    </property>
-   </widget>
-   <widget class="QSpinBox" name="minVal_spinbox">
-    <property name="geometry">
-     <rect>
-      <x>960</x>
-      <y>540</y>
-      <width>71</width>
-      <height>24</height>
-     </rect>
-    </property>
-    <property name="maximum">
-     <number>4096</number>
-    </property>
-    <property name="value">
-     <number>10</number>
-    </property>
-   </widget>
    <widget class="QGroupBox" name="WL_camera">
     <property name="geometry">
      <rect>
@@ -332,62 +300,7 @@
     <property name="geometry">
      <rect>
       <x>770</x>
-      <y>481</y>
-      <width>174</width>
-      <height>144</height>
-     </rect>
-    </property>
-    <layout class="QVBoxLayout" name="NIR_Thresholds">
-     <item>
-      <widget class="QSlider" name="maxVal">
-       <property name="maximum">
-        <number>4096</number>
-       </property>
-       <property name="value">
-        <number>200</number>
-       </property>
-       <property name="sliderPosition">
-        <number>200</number>
-       </property>
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QLabel" name="text_Max_Thresh_Val">
-       <property name="text">
-        <string>Maximum Threshold Value</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QSlider" name="minVal">
-       <property name="maximum">
-        <number>4096</number>
-       </property>
-       <property name="value">
-        <number>10</number>
-       </property>
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QLabel" name="text_Min_Thresh_Val">
-       <property name="text">
-        <string>Minimum Threshold Value</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </widget>
-   <widget class="QWidget" name="layoutWidget">
-    <property name="geometry">
-     <rect>
-      <x>770</x>
-      <y>640</y>
+      <y>480</y>
       <width>171</width>
       <height>56</height>
      </rect>
@@ -426,11 +339,8 @@
    <zorder>cam_2</zorder>
    <zorder>cam_3</zorder>
    <zorder>Monochrome</zorder>
-   <zorder>maxVal_spinbox</zorder>
-   <zorder>minVal_spinbox</zorder>
    <zorder>WL_camera</zorder>
    <zorder>NIR_Camera</zorder>
-   <zorder>layoutWidget</zorder>
    <zorder>AutoExposure</zorder>
    <zorder>layoutWidget</zorder>
   </widget>
@@ -449,6 +359,12 @@
     </property>
     <addaction name="actionCalibrate_NIR"/>
    </widget>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+   </widget>
+   <addaction name="menuFile"/>
    <addaction name="menuOptions"/>
   </widget>
   <widget class="QToolBar" name="mainToolBar">

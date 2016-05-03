@@ -15,17 +15,11 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
 
 
     /// Setting initial values for recording, screenshot, and False-coloring thresholds
-    minVal = 10;
-    maxVal = 200;
     recording = false;
     screenshot_cam1 = false;
     screenshot_cam2 = false;
     monochrome = false;
     opacity_val = 0.1;
-    ui->minVal->setRange(0,4095);
-    ui->maxVal->setRange(0,4095);
-    ui->minVal->setValue(10);
-    ui->maxVal->setValue(200);
     thresh_calibrated = 2;
     autoexpose = true;
     exposure_WL = 60000;
@@ -102,14 +96,6 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
                 delete ui->cam_2;
                 delete ui->cam_3;
                 delete ui->Monochrome;
-
-                delete ui->maxVal_spinbox;
-                delete ui->maxVal;
-                delete ui->text_Max_Thresh_Val;
-
-                delete ui->minVal_spinbox;
-                delete ui->minVal;
-                delete ui->text_Min_Thresh_Val;
 
                 delete ui->opacitySlider;
                 delete ui->text_Opacity;
@@ -643,7 +629,7 @@ void MultiChannelViewer::calibrate_NIR_thresh(QAbstractButton *button)
             sum += Image_NIR_data[i];
         }
         int average = sum / (HEIGHT*WIDTH);
-        this->thresh_calibrated = average;
+        this->thresh_calibrated = average + 1;
         delete Image_NIR_data;
     }
 }
@@ -679,82 +665,6 @@ void MultiChannelViewer::closeEvent(QCloseEvent *event)
     QApplication::exit(0);
 }
 
-void MultiChannelViewer::on_minVal_valueChanged(int value)
-{
-    if (value < this->maxVal - 100)
-    {
-        this->minVal = value;
-        ui->minVal_spinbox->setValue(value);
-
-    }
-    else
-    {
-        this->minVal = this->maxVal - 100;
-        ui->minVal_spinbox->setValue(this->maxVal - 100);
-    }
-}
-
-void MultiChannelViewer::on_maxVal_valueChanged(int value)
-{
-    if (value > this->minVal + 100)
-    {
-        this->maxVal = value;
-        ui->maxVal_spinbox->setValue(value);
-    }
-    else
-    {
-        this->maxVal = this->minVal + 100;
-        ui->maxVal_spinbox->setValue(this->minVal + 100);
-    }
-}
-
-void MultiChannelViewer::on_minVal_spinbox_valueChanged(int arg1)
-{
-    if (arg1 < this->maxVal - 100)
-    {
-        this->minVal = arg1;
-        ui->minVal_spinbox->setValue(arg1);
-        ui->minVal->setValue(arg1);
-    }
-    else
-    {
-        this->minVal = this->maxVal - 100;
-        ui->minVal_spinbox->setValue(this->maxVal - 100);
-        ui->minVal->setValue(this->maxVal - 100);
-    }
-}
-
-void MultiChannelViewer::on_maxVal_spinbox_valueChanged(int arg1)
-{
-    if (arg1 > this->minVal + 100)
-    {
-        this->maxVal = arg1;
-        ui->maxVal_spinbox->setValue(arg1);
-        ui->maxVal->setValue(arg1);
-    }
-    else
-    {
-        this->maxVal = this->minVal + 100;
-        ui->maxVal_spinbox->setValue(this->minVal + 100);
-        ui->maxVal->setValue(this->minVal + 100);
-    }
-}
-
-void MultiChannelViewer::on_minVal_sliderMoved(int position)
-{
-    if (position > this->maxVal - 100)
-    {
-        ui->minVal_spinbox->setValue(position);
-    }
-}
-
-void MultiChannelViewer::on_maxVal_sliderMoved(int position)
-{
-    if (position > this->minVal + 100)
-    {
-        ui->maxVal_spinbox->setValue(position);
-    }
-}
 
 void MultiChannelViewer::on_Record_toggled(bool checked)
 {

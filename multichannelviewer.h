@@ -173,21 +173,9 @@ protected:
     void closeEvent(QCloseEvent *event);
 
 private slots:  /// GUI related functions
-    void on_minVal_valueChanged(int value);
-
-    void on_maxVal_valueChanged(int value);
-
-    void on_minVal_sliderMoved(int position);
-
-    void on_maxVal_sliderMoved(int position);
-
     void on_Record_toggled(bool checked);
 
     void on_Screenshot_clicked();
-
-    void on_maxVal_spinbox_valueChanged(int arg1);
-
-    void on_minVal_spinbox_valueChanged(int arg1);
 
     void on_opacitySlider_valueChanged(int value);
 
@@ -230,8 +218,6 @@ private:
     FFMPEG Video2;                  //!< NIR Video Encoder
     FFMPEG Video3;                  //!< WL+NIR Video Encoder
 
-    unsigned short minVal;          //!< False Coloring Minimum Threshold
-    unsigned short maxVal;          //!< False Coloring Maximum Threshold
     int thresh_calibrated;
     bool recording;                 //!< Set to true when Video Encoders are recording
 
