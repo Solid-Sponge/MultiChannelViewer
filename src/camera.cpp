@@ -65,8 +65,8 @@ void Camera::captureSetup()
 
         PvAttrUint32Set(this->Handle, "Width", 640);
         PvAttrUint32Set(this->Handle, "Height", 480);
-        PvAttrUint32Set(this->Handle, "RegionX", 388);  //x = 400
-        PvAttrUint32Set(this->Handle, "RegionY", 250);  //y = 250
+        PvAttrUint32Set(this->Handle, "RegionX", 295);  //x = 400
+        PvAttrUint32Set(this->Handle, "RegionY", 236);  //y = 250
     }
     else
     {
@@ -78,7 +78,7 @@ void Camera::captureSetup()
 
         PvAttrUint32Set(this->Handle, "Width", 640); //x = 269
         PvAttrUint32Set(this->Handle, "Height", 480); //y = 332
-        PvAttrUint32Set(this->Handle, "RegionX", 450);
+        PvAttrUint32Set(this->Handle, "RegionX", 523);
         PvAttrUint32Set(this->Handle, "RegionY", 180);
 
         //PvAttrUint32Set(this->Handle, "ExposureAutoMax", 60000);
@@ -139,9 +139,17 @@ void Camera::capture()
     PvCommandRun(this->Handle, "AcquisitionStart");
     //PvCaptureQueueClear(this->Handle);
 
-    tPvErr errcode = PvCaptureQueueFrame(this->Handle, &(this->Frames[0]), NULL);
-    if (errcode != ePvErrSuccess)
-        std::cout << "Frame is Kill" << std::endl;
+    tPvErr errcode;
+    do
+    {
+        errcode = PvCaptureQueueFrame(this->Handle, &(this->Frames[0]), NULL);
+        PvCaptureWaitForFrameDone(this->Handle, &(this->Frames[0]), PVINFINITE);
+    }while (errcode != ePvErrSuccess && errcode != ePvErrUnplugged);
+
+    //if (errcode != ePvErrSuccess)
+        //std::cout << "Frame is Kill" << std::endl;
+
+    PvCommandRun(this->Handle, "AcquisitionStop");
     if (errcode == ePvErrUnplugged)
     {
         this->Disconnected = true;
@@ -150,9 +158,6 @@ void Camera::capture()
         errBox.setFixedSize(500,200);
         QApplication::exit(1);
     }
-
-    PvCaptureWaitForFrameDone(this->Handle, &(this->Frames[0]), PVINFINITE);
-    PvCommandRun(this->Handle, "AcquisitionStop");
 
 
     if (Mono16)

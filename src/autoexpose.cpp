@@ -99,7 +99,8 @@ void AutoExpose::AutoExposure_Two_Cams(QImage *Cam1_Image, unsigned char *Cam2_I
     }
 
     int Histogram_WL[4096] = {0};
-    int Histogram_NIR[4096] = {0};
+    //int Histogram_NIR[4096] = {0};
+    int Histogram_NIR[65535] = {0};
     int pixel_count = 0;
 
     for (int i = 0; i < Image_WL.height()*Image_WL.width(); i++)
@@ -295,7 +296,7 @@ void AutoExpose::AutoExposure_NIR_Cam(unsigned char* Cam2_Image_Raw)
         new_exposure_NIR = 330000;
 
     this->exposure_NIR = new_exposure_NIR;
-    std::cout << "Exposure_NIR: " << exposure_NIR;
+    //std::cout << "Exposure_NIR: " << exposure_NIR;
 
     tPvHandle* Cam1_Handle = Cam1->getHandle();
     PvAttrUint32Set(*Cam1_Handle, "ExposureValue", this->exposure_NIR);

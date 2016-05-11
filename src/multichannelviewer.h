@@ -116,17 +116,26 @@ signals:
     /**
      * @brief Emitted when frame from Cam1 has finished rendering
      */
-    void renderFrame_Cam1_Done();
+    void SIG_renderFrame_WL_Cam_Done();
 
     /**
      * @brief Emitted when frame from Cam2 has finished rendering
      */
-    void renderFrame_Cam2_Done();
+    void SIG_renderFrame_NIR_Cam_Done();
 
+    /**
+     * @brief Emitted when Autoexposure for both cams needs to be called
+     */
     void SIG_AutoExpose(QImage *WL_Image, unsigned char* NIR_Raw_Image);
 
+    /**
+     * @brief Emitted when Autoexposure for single WL cam needs to be called
+     */
     void SIG_AutoExpose_WL(QImage *WL_Image);
 
+    /**
+     * @brief Emitted when Autoexposure for single NIR cam needs to be called
+     */
     void SIG_AutoExpose_NIR(unsigned char* NIR_Raw_Image);
 
 public slots:
@@ -134,19 +143,19 @@ public slots:
     /**
      * @brief Displays 24-bit RGB frame from WL Cam1 in Main GUI
      *
-     * renderFrame_Cam1() is intended for the white light camera.
+     * renderFrame_WL_Cam() is intended for the white light camera.
      * This function assumes that the original frame format is
      * 8-bit Bayer. It then automatically interpolates to 24-bit RGB
      * before displaying to screen.
      *
      * @param cam (Pointer to Cam1)
      */
-    void renderFrame_Cam1(Camera *cam);
+    void renderFrame_WL_Cam(Camera *cam);
 
     /**
      * @brief Displays 24-bit RGB from NIR Cam2 in Main GUI
      *
-     * renderFrame_Cam2() is intended for the near-infrared (NIR) camera.
+     * renderFrame_NIR_Cam() is intended for the near-infrared (NIR) camera.
      * This function assumes that the original frame format is
      * 16-bit Mono. It then applies a False coloring transformation
      * based of the intensities of the values, before displaying to
@@ -154,7 +163,7 @@ public slots:
      *
      * @param cam (Pointer to Cam2)
      */
-    void renderFrame_Cam2(Camera *cam);
+    void renderFrame_NIR_Cam(Camera *cam);
 
     /**
      * @brief Displays 32-bit RGBA from a combined image of WL Cam1 and NIR Cam2 in Main GUI

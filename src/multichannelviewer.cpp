@@ -2,10 +2,6 @@
 #include "ui_multichannelviewer.h"
 #include "qapplication.h"
 
-//#define minVal 0
-//#define maxVal 4000
-
-
 MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MultiChannelViewer)
@@ -33,7 +29,7 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
 
     if (this->InitializePv() && this->ConnectToCam()) //!< Executes if PvAPI initializes and Cameras connect successfully
     {
-        if (this->Two_Cameras_Connected)
+        if (this->Two_Cameras_Connected) //!< Executes if two cameras (WL and NIR) are detected
         {
             this->exposure_control = new AutoExpose(&Cam1, &Cam2);
 
@@ -46,24 +42,24 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
             /// Connects various slots and signals. Identical for the second set of connections
             ///
             /// The first connection connects the frameReady signal to the renderFrame slot.
-            /// When the camera has finished capturing a frame, the renderFrame_Cam1 function will execute
+            /// When the camera has finished capturing a frame, the function will execute
             /// displaying the frame on the Main GUI window
             ///
-            /// The second connection connects the renderFrame_Cam1_Done signal to the capture() slot.
+            /// The second connection connects the SIG_renderFrame_WL_Cam_Done signal to the capture() slot.
             /// This completes the loop so that when the Main GUI has finished displaying the frame,
             /// it tells the camera to capture another frame
             ///
             /// The third connection ties the camera object to its own thread, and by extension, tying all these
             /// connections to that same thread, so that the camera captures and displays an image all on its own
             /// thread
-            connect(&Cam1, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_Cam1(Camera*)),Qt::AutoConnection);
-            connect(this, SIGNAL(renderFrame_Cam1_Done()), &Cam1, SLOT(capture()),Qt::AutoConnection);
+            connect(&Cam1, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_WL_Cam(Camera*)),Qt::AutoConnection);
+            connect(this, SIGNAL(SIG_renderFrame_WL_Cam_Done()), &Cam1, SLOT(capture()),Qt::AutoConnection);
             connect(&thread1, SIGNAL(started()), &Cam1, SLOT(capture()));
 
 
             ///Identical to the above set of slots and signals, except for Cam2 and Cam2-specific functions
-            connect(&Cam2, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_Cam2(Camera*)),Qt::AutoConnection);
-            connect(this, SIGNAL(renderFrame_Cam2_Done()), &Cam2, SLOT(capture()), Qt::AutoConnection);
+            connect(&Cam2, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_NIR_Cam(Camera*)),Qt::AutoConnection);
+            connect(this, SIGNAL(SIG_renderFrame_NIR_Cam_Done()), &Cam2, SLOT(capture()), Qt::AutoConnection);
             connect(&thread2, SIGNAL(started()), &Cam2, SLOT(capture()));
 
             connect(this, SIGNAL(SIG_AutoExpose(QImage*,unsigned char*)),
@@ -82,40 +78,83 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
             this->exposure_control = new AutoExpose(&Cam1);
 
             Cam1.moveToThread(&thread1);
-            if (Cam1.isWhiteLight())
+            if (Cam1.isWhiteLight()) //!< Executes if Cam is White Light only
             {
-                connect(&Cam1, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_Cam1(Camera*)));
-                connect(this, SIGNAL(renderFrame_Cam1_Done()), &Cam1, SLOT(capture()));
+
+                /// Connects various slots and signals.
+                ///
+                /// The first connection connects the frameReady signal to the renderFrame slot.
+                /// When the camera has finished capturing a frame, the renderFrame_WL_Cam function will execute
+                /// displaying the frame on the Main GUI window
+                ///
+                /// The second connection connects the SIG_renderFrame_WL_Cam_Done signal to the capture() slot.
+                /// This completes the loop so that when the Main GUI has finished displaying the frame,
+                /// it tells the camera to capture another frame
+                ///
+                /// The third connection ties the camera object to its own thread, and by extension, tying all these
+                /// connections to that same thread, so that the camera captures and displays an image all on its own
+                /// thread
+                connect(&Cam1, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_WL_Cam(Camera*)));
+                connect(this, SIGNAL(SIG_renderFrame_WL_Cam_Done()), &Cam1, SLOT(capture()));
                 connect(&thread1, SIGNAL(started()), &Cam1, SLOT(capture()));
                 connect(this, SIGNAL(SIG_AutoExpose_WL(QImage*)),
                         exposure_control, SLOT(AutoExposure_WL_Cam(QImage*)), Qt::DirectConnection);
 
                 this->Single_Cameras_is_WL = true;
 
+                /// UI Tweaks (deletes all unneeded elements from NIR cam)
                 delete ui->NIR_Camera;
                 delete ui->cam_2;
                 delete ui->cam_3;
                 delete ui->Monochrome;
-
                 delete ui->opacitySlider;
                 delete ui->text_Opacity;
+
+                /// UI Resizing
+                ui->WL_camera->setGeometry(200,640,221,141);
+                ui->Media->setGeometry(250,540,129,85);
+                ui->AutoExposure->setGeometry(20,490,111,20);
+                this->resize(640,900);
             }
-            else if (Cam1.isNearInfrared())
+            else if (Cam1.isNearInfrared()) //!< Executes if Cam is NIR only
             {
-                connect(&Cam1, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_Cam2(Camera*)));
-                connect(this, SIGNAL(renderFrame_Cam2_Done()), &Cam1, SLOT(capture()));
+
+                /// Connects various slots and signals.
+                ///
+                /// The first connection connects the frameReady signal to the renderFrame slot.
+                /// When the camera has finished capturing a frame, the renderFrame_WL_Cam function will execute
+                /// displaying the frame on the Main GUI window
+                ///
+                /// The second connection connects the SIG_renderFrame_WL_Cam_Done signal to the capture() slot.
+                /// This completes the loop so that when the Main GUI has finished displaying the frame,
+                /// it tells the camera to capture another frame
+                ///
+                /// The third connection ties the camera object to its own thread, and by extension, tying all these
+                /// connections to that same thread, so that the camera captures and displays an image all on its own
+                /// thread
+                connect(&Cam1, SIGNAL(frameReady(Camera*)), this, SLOT(renderFrame_NIR_Cam(Camera*)));
+                connect(this, SIGNAL(SIG_renderFrame_NIR_Cam_Done()), &Cam1, SLOT(capture()));
                 connect(&thread1, SIGNAL(started()), &Cam1, SLOT(capture()));
                 connect(this, SIGNAL(SIG_AutoExpose_NIR(unsigned char*)),
                         exposure_control, SLOT(AutoExposure_NIR_Cam(unsigned char*)), Qt::DirectConnection);
 
                 this->Single_Cameras_is_WL = false;
                 Cam1.SetMono16Bit();
+
+                // UI Tweaks (deletes all unneeded elements from WL cam)
                 delete ui->WL_camera;
                 delete ui->cam_1;
                 delete ui->cam_3;
                 delete ui->Monochrome;
                 delete ui->opacitySlider;
                 delete ui->text_Opacity;
+
+                // UI Resizing
+                ui->cam_2->setGeometry(0,0,640,480);
+                ui->NIR_Camera->setGeometry(200,640,221,141);
+                ui->Media->setGeometry(250,540,129,85);
+                ui->AutoExposure->setGeometry(20,490,111,20);
+                this->resize(640,900);
             }
             Cam1.captureSetup();
 
@@ -158,6 +197,7 @@ bool MultiChannelViewer::ConnectToCam()
     tPvCameraInfoEx   info[2];
     unsigned long     numCameras;
 
+    /// Creates messagebox that shows camera's connected
     int returnVal = QMessageBox::Retry;
     QMessageBox* WaitForCamera = new QMessageBox();
     WaitForCamera->setModal(true);
@@ -167,7 +207,7 @@ bool MultiChannelViewer::ConnectToCam()
     WaitForCamera->setText("Cameras found: ");
     QThread::sleep(3);
 
-    while (returnVal == QMessageBox::Retry)
+    while (returnVal == QMessageBox::Retry) //!< Allows user to refresh list of cameras if they forget to connect a camera before the application launches
     {
         numCameras = PvCameraListEx(info, 2, NULL, sizeof(tPvCameraInfoEx));
         QThread::msleep(500);
@@ -185,7 +225,7 @@ bool MultiChannelViewer::ConnectToCam()
     }
     delete WaitForCamera;
 
-    // Open the first two cameras found, if it’s not already open.
+    /// If two cameras are found, opens them
     if ((numCameras >= 2) && (info[0].PermittedAccess & ePvAccessMaster) && (info[1].PermittedAccess & ePvAccessMaster))
     {
         Cam1.setID(info[0].UniqueId);
@@ -194,6 +234,7 @@ bool MultiChannelViewer::ConnectToCam()
         Cam2.setID(info[1].UniqueId);
         Cam2.setCameraName(info[1].CameraName);
 
+        /// Ensures that Cam1 is a WL cam and Cam2 is an NIR Cam if Two Cameras are connected
         if (Cam1.GrabHandleFromID() && Cam2.GrabHandleFromID())
         {
             if (!Cam1.isWhiteLight() && !Cam2.isNearInfrared())
@@ -208,6 +249,7 @@ bool MultiChannelViewer::ConnectToCam()
         }
         return false;
     }
+    /// If only one camera is found, opens it
     if ((numCameras == 1) && (info[0].PermittedAccess & ePvAccessMaster))
     {
         Cam1.setID(info[0].UniqueId);
@@ -221,7 +263,7 @@ bool MultiChannelViewer::ConnectToCam()
     return false;
 }
 
-void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
+void MultiChannelViewer::renderFrame_WL_Cam(Camera* cam)
 {
     tPvFrame* FramePtr1 = cam->getFramePtr();
     tPvHandle* CamHandle = cam->getHandle();
@@ -274,13 +316,22 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
         timestamp.append("_WL.png");
         //timestamp = QString("/Screenshot/") + timestamp;
 
+#ifdef _WIN32
+        timestamp = QString("Screenshot\\") + timestamp;
+        system ("md Screenshot");
+#endif
+
 #ifdef __APPLE__
         system("mkdir ../../../Screenshot");
         timestamp = QString("../../../Screenshot/") + timestamp;
 #endif
 
+#ifdef __linux__
+        timestamp = QString("Screenshot/") + timestamp;
+        system("mkdir Screenshot");
+#endif
+
         QFile file(timestamp);
-        //QFile file(QCoreApplication::applicationDirPath() + "/Screenshot/" + timestamp);
         file.open(QIODevice::WriteOnly);
         imgFrame.save(&file, "PNG");
         file.close();
@@ -304,10 +355,10 @@ void MultiChannelViewer::renderFrame_Cam1(Camera* cam)
     }
 
     delete[] buffer;
-    emit renderFrame_Cam1_Done(); //!< Tells WL camera to capture another frame
+    emit SIG_renderFrame_WL_Cam_Done(); //!< Tells WL camera to capture another frame
 }
 
-void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
+void MultiChannelViewer::renderFrame_NIR_Cam(Camera* cam)
 {
     tPvFrame* FramePtr1 = cam->getFramePtr();
     tPvHandle* CamHandle = cam->getHandle();
@@ -315,7 +366,8 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 
     unsigned short* rawPtr = static_cast<unsigned short*>(FramePtr1->ImageBuffer);
 
-    int Histogram_NIR[4096] = {0};
+    //int Histogram_NIR[4096] = {0};
+    int Histogram_NIR[65535] = {0};
     int pixel_count = 0;
     //thresh_calibrated = 18;
     for (int i = 0; i < HEIGHT*WIDTH; i++)
@@ -465,9 +517,19 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
         timestamp.replace(QString(":"), QString("-"));
         timestamp.append("_NIR.png");
 
+#ifdef _WIN32
+        timestamp = QString("Screenshot\\") + timestamp;
+        system ("md Screenshot");
+#endif
+
 #ifdef __APPLE__
         system("mkdir ../../../Screenshot");
         timestamp = QString("../../../Screenshot/") + timestamp;
+#endif
+
+#ifdef __linux__
+        timestamp = QString("Screenshot/") + timestamp;
+        system("mkdir Screenshot");
 #endif
 
         QFile file(timestamp);
@@ -488,7 +550,7 @@ void MultiChannelViewer::renderFrame_Cam2(Camera* cam)
 
     delete[] buffer;
 
-    emit renderFrame_Cam2_Done();
+    emit SIG_renderFrame_NIR_Cam_Done();
 }
 
 void MultiChannelViewer::renderFrame_Cam3()
@@ -629,7 +691,7 @@ void MultiChannelViewer::calibrate_NIR_thresh(QAbstractButton *button)
             sum += Image_NIR_data[i];
         }
         int average = sum / (HEIGHT*WIDTH);
-        this->thresh_calibrated = average + 1;
+        this->thresh_calibrated = average + 4;
         delete Image_NIR_data;
     }
 }
@@ -830,6 +892,16 @@ void MultiChannelViewer::on_NIR_Exposure_valueChanged(int arg1)
 
 void MultiChannelViewer::on_actionCalibrate_NIR_triggered()
 {
+    if (Single_Cameras_is_WL && !Two_Cameras_Connected)
+    {
+        QMessageBox* InvalidMsg = new QMessageBox();
+        InvalidMsg->setIcon(QMessageBox::Critical);
+        InvalidMsg->setModal(true);
+        InvalidMsg->setText("ERROR: No NIR Camera detected.");
+        InvalidMsg->setAttribute(Qt::WA_DeleteOnClose);
+        InvalidMsg->show();
+        return;
+    }
     Calibrate_Window = new QMessageBox();
     Calibrate_Window->setModal(true);
     Calibrate_Window->setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);

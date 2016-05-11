@@ -9,6 +9,7 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = MultiChannelViewer
 TEMPLATE = app
+CONFIG += static
 
 
 
@@ -34,8 +35,9 @@ DISTFILES += \
 macx: ICON = icon.icns
 
 
-
 QMAKE_LFLAGS += -F//System/Library/Frameworks
+QMAKE_LFLAGS += -lstdc++.6
+
 macx: LIBS += -framework CoreFoundation
 macx: LIBS += -framework CoreVideo
 macx: LIBS += -framework VideoDecodeAcceleration

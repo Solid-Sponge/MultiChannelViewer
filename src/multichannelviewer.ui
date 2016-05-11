@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1052</width>
-    <height>818</height>
+    <width>1281</width>
+    <height>1020</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,8 +19,8 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>500</width>
-      <height>375</height>
+      <width>640</width>
+      <height>480</height>
      </rect>
     </property>
     <property name="minimumSize">
@@ -39,10 +39,10 @@
    <widget class="QLabel" name="cam_2">
     <property name="geometry">
      <rect>
-      <x>501</x>
+      <x>641</x>
       <y>0</y>
-      <width>500</width>
-      <height>375</height>
+      <width>640</width>
+      <height>480</height>
      </rect>
     </property>
     <property name="minimumSize">
@@ -62,9 +62,9 @@
     <property name="geometry">
      <rect>
       <x>0</x>
-      <y>376</y>
-      <width>500</width>
-      <height>375</height>
+      <y>481</y>
+      <width>640</width>
+      <height>480</height>
      </rect>
     </property>
     <property name="minimumSize">
@@ -83,8 +83,8 @@
    <widget class="QCheckBox" name="Monochrome">
     <property name="geometry">
      <rect>
-      <x>530</x>
-      <y>690</y>
+      <x>760</x>
+      <y>820</y>
       <width>111</width>
       <height>20</height>
      </rect>
@@ -96,8 +96,8 @@
    <widget class="QGroupBox" name="WL_camera">
     <property name="geometry">
      <rect>
-      <x>530</x>
-      <y>390</y>
+      <x>760</x>
+      <y>520</y>
       <width>221</width>
       <height>141</height>
      </rect>
@@ -175,8 +175,8 @@
    <widget class="QGroupBox" name="NIR_Camera">
     <property name="geometry">
      <rect>
-      <x>530</x>
-      <y>530</y>
+      <x>760</x>
+      <y>660</y>
       <width>221</width>
       <height>141</height>
      </rect>
@@ -251,13 +251,13 @@
      </layout>
     </widget>
    </widget>
-   <widget class="QWidget" name="layoutWidget">
+   <widget class="QFrame" name="Media">
     <property name="geometry">
      <rect>
-      <x>800</x>
-      <y>400</y>
-      <width>111</width>
-      <height>66</height>
+      <x>1020</x>
+      <y>540</y>
+      <width>129</width>
+      <height>85</height>
      </rect>
     </property>
     <layout class="QVBoxLayout" name="verticalLayout">
@@ -270,6 +270,9 @@
      </item>
      <item>
       <widget class="QPushButton" name="Record">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
        <property name="text">
         <string>Record</string>
        </property>
@@ -283,8 +286,8 @@
    <widget class="QCheckBox" name="AutoExposure">
     <property name="geometry">
      <rect>
-      <x>530</x>
-      <y>720</y>
+      <x>760</x>
+      <y>850</y>
       <width>111</width>
       <height>20</height>
      </rect>
@@ -299,8 +302,8 @@
    <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
-      <x>770</x>
-      <y>480</y>
+      <x>1000</x>
+      <y>680</y>
       <width>171</width>
       <height>56</height>
      </rect>
@@ -334,7 +337,7 @@
      </item>
     </layout>
    </widget>
-   <zorder>layoutWidget</zorder>
+   <zorder>Media</zorder>
    <zorder>cam_1</zorder>
    <zorder>cam_2</zorder>
    <zorder>cam_3</zorder>
@@ -349,7 +352,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1052</width>
+     <width>1281</width>
      <height>22</height>
     </rect>
    </property>
