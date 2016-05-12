@@ -34,8 +34,8 @@
 #include <QThread>
 #include <QMessageBox>
 #include <QApplication>
-#include <PvApi.h>
-#include <PvRegIo.h>
+#include <PvAPI/PvApi.h>
+#include <PvAPI/PvRegIo.h>
 #include <cstring>
 #include <iostream>
 

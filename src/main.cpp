@@ -11,8 +11,8 @@
 #include <QImage>
 
 #include <iostream>
-#include <PvApi.h>
-#include <PvRegIo.h>
+#include <PvAPI/PvApi.h>
+#include <PvAPI/PvRegIo.h>
 #include <camera.h>
 
 #include <FFMPEGClass.h>

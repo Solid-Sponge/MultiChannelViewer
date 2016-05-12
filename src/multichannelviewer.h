@@ -56,8 +56,10 @@
 
 #include <iostream>
 #include <cstdlib>
-#include <PvApi.h>
-#include <PvRegIo.h>
+
+#include <PvAPI/PvApi.h>
+#include <PvAPI/PvRegIo.h>
+
 #include <camera.h>
 #include <FFMPEGClass.h>
 #include <autoexpose.h>

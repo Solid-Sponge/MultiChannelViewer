@@ -39,14 +39,19 @@
 // FFMPEG is writen in C so we need to use extern "C"
 //-----------------------------
 extern "C" {
-	#define INT64_C(x) (x ## LL)
-	#define UINT64_C(x) (x ## ULL)
+    //#define INT64_C(x) (x ## LL)
+    //#define UINT64_C(x) (x ## ULL)
 	
 	#include <stdlib.h>
 	#include <stdio.h>
 	#include <string.h>
 	#include <math.h>
-	#include <libavutil/opt.h>
+/*#ifdef _WIN32
+    #include <lib/x86/win32/include/libavutil/opt.h>
+    #include <lib/x86/win32/include/libavutil/mathematics.h>
+    #include <lib/x86/win32/include/libavformat/avformat.h>
+#else*/
+    #include <libavutil/opt.h>
 	#include <libavutil/mathematics.h>
 	#include <libavformat/avformat.h>
 	#include <libswscale/swscale.h>
