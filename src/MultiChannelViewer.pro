@@ -32,10 +32,8 @@ DISTFILES += \
 
 
 #Windows Libraries and Settings
-win32
-{
-    contains(QT_ARCH, i386)
-    {
+win32 {
+    contains(QT_ARCH, i386) {
         INCLUDEPATH += $$PWD/lib/x86/win32/include/PvAPI
         DEPENDPATH += $$PWD/lib/x86/win32/include/PvAPI
         LIBS += -L$$PWD/lib/x86/win32/ -lPvAPI
@@ -52,10 +50,8 @@ win32
 }
 
 #OSX Libraries and Settings
-macx
-{
-    contains(QT_ARCH, x86_64)
-    {
+macx {
+    contains(QT_ARCH, x86_64) {
         QMAKE_MACOSX_DEPLOYMENT_TARGET = 10.11
         ICON = icon.icns
 
