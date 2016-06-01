@@ -208,6 +208,10 @@ private slots:  /// GUI related functions
 
     void on_actionCalibrate_NIR_triggered();
 
+    void on_actionAbout_triggered();
+
+    void on_NIR_Thresh_valueChanged(int arg1);
+
 private:
     Ui::MultiChannelViewer *ui;
     Camera Cam1;                    //!< White Light Camera

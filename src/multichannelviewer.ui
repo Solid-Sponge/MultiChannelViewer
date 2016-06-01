@@ -337,6 +337,29 @@
      </item>
     </layout>
    </widget>
+   <widget class="QSpinBox" name="NIR_Thresh">
+    <property name="geometry">
+     <rect>
+      <x>1001</x>
+      <y>751</y>
+      <width>124</width>
+      <height>24</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QLabel" name="NIR_Thresh_label">
+    <property name="geometry">
+     <rect>
+      <x>1001</x>
+      <y>785</y>
+      <width>124</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>NIR Noise Threshold</string>
+    </property>
+   </widget>
    <zorder>Media</zorder>
    <zorder>cam_1</zorder>
    <zorder>cam_2</zorder>
@@ -346,6 +369,8 @@
    <zorder>NIR_Camera</zorder>
    <zorder>AutoExposure</zorder>
    <zorder>layoutWidget</zorder>
+   <zorder>NIR_Thresh</zorder>
+   <zorder>NIR_Thresh_label</zorder>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">
@@ -382,6 +407,11 @@
   <action name="actionCalibrate_NIR">
    <property name="text">
     <string>Calibrate NIR</string>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="text">
+    <string>About</string>
    </property>
   </action>
  </widget>

@@ -30,6 +30,8 @@
 #define _x64
 #define FRAMESCOUNT 3
 
+#define coord(i,j,width) (i*width + j)
+
 #include <QObject>
 #include <QThread>
 #include <QMessageBox>

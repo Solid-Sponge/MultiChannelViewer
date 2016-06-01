@@ -60,13 +60,13 @@ void Camera::captureSetup()
         PvAttrUint32Set(this->Handle, "ExposureValue", 500000);
         PvAttrUint32Set(this->Handle,"StreamBytesPerSecond", 115000000 / 2 - 20000000);
 
-        PvAttrUint32Set(this->Handle, "BinningX", 1);
-        PvAttrUint32Set(this->Handle, "BinningY", 1);
+        PvAttrUint32Set(this->Handle, "BinningX", 2);
+        PvAttrUint32Set(this->Handle, "BinningY", 2);
 
         PvAttrUint32Set(this->Handle, "Width", 640);
         PvAttrUint32Set(this->Handle, "Height", 480);
-        PvAttrUint32Set(this->Handle, "RegionX", 295);  //x = 400
-        PvAttrUint32Set(this->Handle, "RegionY", 236);  //y = 250
+        PvAttrUint32Set(this->Handle, "RegionX", 0);  //x = 295
+        PvAttrUint32Set(this->Handle, "RegionY", 0);  //y = 236
     }
     else
     {
@@ -164,7 +164,6 @@ void Camera::capture()
     {
 
         // Median Filter
-
         unsigned short* rawPtr = static_cast<unsigned short*>(Frames[0].ImageBuffer);
         unsigned char* filter = new unsigned char[Frames[0].ImageSize];
         unsigned short* filterPtr = reinterpret_cast<unsigned short*>(filter);
@@ -187,8 +186,31 @@ void Camera::capture()
                 filterPtr[Frames[0].Width*(i) + j] = window[4];
             }
         }
-        memcpy(rawPtr, filterPtr, Frames[0].ImageSize);
-        delete[] filter;
+
+        //Binning Correcting Factor
+        unsigned char * correct = new unsigned char[Frames[0].ImageSize];
+        unsigned short* correctPtr = reinterpret_cast<unsigned short*>(correct);
+        for (int i = 0; i < Frames[0].Height/2; i++)
+        {
+            for (int j = 0; j < Frames[0].Width/2; j++)
+            {
+                //correctPtr[Frames[0].Width*2*i + 2*j] = rawPtr[Frames[0].Width*i + j];
+                correctPtr[coord(2*i,2*j,Frames[0].Width)] = filterPtr[Frames[0].Width*(i+100) + (j+135)];
+
+                //correctPtr[Frames[0].Width*2*i + 2*j+1] = rawPtr[Frames[0].Width*i + j];
+                correctPtr[coord(2*i,(2*j + 1), Frames[0].Width)] = filterPtr[Frames[0].Width*(i+100) + (j+135)];
+
+                //correctPtr[Frames[0].Width*2*i + 1 + 2*j] = rawPtr[Frames[0].Width*i + j];
+                correctPtr[coord((2*i + 1) , 2*j, Frames[0].Width)] = filterPtr[Frames[0].Width*(i+100) + (j+135)];
+
+                //correctPtr[Frames[0].Width*2*i + 1 + 2*j + 1] = rawPtr[Frames[0].Width*i + j];
+                correctPtr[coord((2*i + 1), (2*j + 1), Frames[0].Width)] = filterPtr[Frames[0].Width*(i+100) + (j+135)];
+            }
+        }
+        memcpy(rawPtr,correctPtr,Frames[0].ImageSize);
+        //memcpy(rawPtr, filterPtr, Frames[0].ImageSize);
+        //delete[] filter;
+        delete[] correct;
     }
 
     emit frameReady(this);

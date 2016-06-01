@@ -109,6 +109,8 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
                 delete ui->Monochrome;
                 delete ui->opacitySlider;
                 delete ui->text_Opacity;
+                delete ui->NIR_Thresh;
+                delete ui->NIR_Thresh_label;
 
                 /// UI Resizing
                 ui->WL_camera->setGeometry(200,640,221,141);
@@ -154,6 +156,8 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
                 ui->NIR_Camera->setGeometry(200,640,221,141);
                 ui->Media->setGeometry(250,540,129,85);
                 ui->AutoExposure->setGeometry(20,490,111,20);
+                ui->NIR_Thresh->setGeometry(250,800,124,24);
+                ui->NIR_Thresh_label->setGeometry(250,826,124,16);
                 this->resize(640,900);
             }
             Cam1.captureSetup();
@@ -370,9 +374,9 @@ void MultiChannelViewer::renderFrame_NIR_Cam(Camera* cam)
     int Histogram_NIR[65535] = {0};
     int pixel_count = 0;
     //thresh_calibrated = 18;
-    for (int i = 0; i < HEIGHT*WIDTH; i++)
+    for (int i = 0; i < FramePtr1->Height*FramePtr1->Width; i++)
     {
-        if (rawPtr[i] >= thresh_calibrated)
+        if (rawPtr[i] > thresh_calibrated)
         {
             //unsigned short NIR = static_cast<unsigned short>(rawPtr[i]);
             Histogram_NIR[rawPtr[i]]++;
@@ -392,7 +396,7 @@ void MultiChannelViewer::renderFrame_NIR_Cam(Camera* cam)
     thresh1 = thresh_calibrated;
     int sum = 0;
     //Integrate here to find thresholds. Thresholds placed at 17%, 34%, 51%, 68%, 85% of total pixels
-    for (int k = thresh_calibrated; k < 4096; k++)
+    for (int k = thresh_calibrated+1; k < 4096; k++)
     {
         sum += Histogram_NIR[k];
         if (!thresh2_found && ((double) sum / (double) pixel_count) > 0.17)
@@ -402,22 +406,22 @@ void MultiChannelViewer::renderFrame_NIR_Cam(Camera* cam)
         }
         if (!thresh3_found && ((double) sum / (double) pixel_count) > 0.34)
         {
-            thresh3 = k;
+            thresh3 = (thresh2 >= k) ? thresh2+1 : k;
             thresh3_found = true;
         }
         if (!thresh4_found && ((double) sum / (double) pixel_count) > 0.51)
         {
-            thresh4 = k;
+            thresh4 = (thresh3 >= k) ? thresh3+1 : k;
             thresh4_found = true;
         }
         if (!thresh5_found && ((double) sum / (double) pixel_count) > 0.68)
         {
-            thresh5 = k;
+            thresh5 = (thresh4 >= k) ? thresh4+1 : k;
             thresh5_found = true;
         }
         if (!thresh6_found && ((double) sum / (double) pixel_count) > 0.85)
         {
-            thresh6 = k;
+            thresh6 = (thresh5 >= k) ? thresh5+1 : k;
             thresh6_found = true;
         }
     }
@@ -494,6 +498,11 @@ void MultiChannelViewer::renderFrame_NIR_Cam(Camera* cam)
 
             QRgb color = qRgb(r, g, b);
             imgFrame.setPixel(j, i, color);
+
+            /*imgFrame.setPixel(2*j, 2*i, color);
+            imgFrame.setPixel(2*j + 1, 2*i, color);
+            imgFrame.setPixel(2*j, 2*i + 1, color);
+            imgFrame.setPixel(2*j + 1, 2*i + 1, color);*/
             rawPtr++;
         }
     }
@@ -686,12 +695,18 @@ void MultiChannelViewer::calibrate_NIR_thresh(QAbstractButton *button)
         std::memcpy(Image_NIR_data, Cam2_Image_Raw, HEIGHT*WIDTH*2);
         unsigned long long sum = 0;
 
-        for (int i = 0; i < HEIGHT*WIDTH; i++)
+        //for (int i = 0; i < HEIGHT*WIDTH; i++)
+        for (int i = 1; i < HEIGHT; i++)
         {
-            sum += Image_NIR_data[i];
+            for (int j = 1; j < WIDTH; j++)
+            {
+                sum += Image_NIR_data[i*WIDTH + j];
+            }
+            //sum += Image_NIR_data[i];
         }
-        int average = sum / (HEIGHT*WIDTH);
-        this->thresh_calibrated = average + 4;
+        int average = sum / ((HEIGHT-1)*(WIDTH-1));
+        this->thresh_calibrated = average + 2;
+        ui->NIR_Thresh->setValue(thresh_calibrated);
         delete Image_NIR_data;
     }
 }
@@ -845,12 +860,18 @@ void MultiChannelViewer::on_RegionY_WL_valueChanged(int arg1)
 
 void MultiChannelViewer::on_RegionX_NIR_valueChanged(int arg1)
 {
-    PvAttrUint32Set(*(Cam2.getHandle()), "RegionX", arg1);
+    if (this->Two_Cameras_Connected)
+        PvAttrUint32Set(*(Cam2.getHandle()), "RegionX", arg1);
+    else
+        PvAttrUint32Set(*(Cam1.getHandle()), "RegionX", arg1);
 }
 
 void MultiChannelViewer::on_RegionY_NIR_valueChanged(int arg1)
 {
-    PvAttrUint32Set(*(Cam2.getHandle()), "RegionY", arg1);
+    if (this->Two_Cameras_Connected)
+        PvAttrUint32Set(*(Cam2.getHandle()), "RegionY", arg1);
+    else
+        PvAttrUint32Set(*(Cam1.getHandle()), "RegionY", arg1);
 }
 
 void MultiChannelViewer::on_AutoExposure_stateChanged(int arg1)
@@ -926,4 +947,27 @@ void MultiChannelViewer::on_actionCalibrate_NIR_triggered()
     Calibrate_Window->setText("This will calibrate the NIR thresholds.\nPoint the NIR camera at an empty space.");
     Calibrate_Window->setAttribute(Qt::WA_DeleteOnClose);
     Calibrate_Window->open(this, SLOT(calibrate_NIR_thresh(QAbstractButton*)));
+}
+
+void MultiChannelViewer::on_actionAbout_triggered()
+{
+    QString title = "MultiChannelViewer Copyright (C) 2016 Michael Rossi";
+    QString message =  "MultiChannelViewer Copyright (C) 2016 Michael Rossi\n\n\
+This program is free software: you can redistribute it and/or modify \
+it under the terms of the GNU General Public License as published by \
+the Free Software Foundation, either version 3 of the License, or \
+(at your option) any later version.\n\n\
+This program is distributed in the hope that it will be useful, \
+but WITHOUT ANY WARRANTY; without even the implied warranty of \
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the \
+GNU General Public License for more details.\n\n\
+You should have received a copy of the GNU General Public License \
+along with this program.  If not, see <http://www.gnu.org/licenses/>.";
+
+    QMessageBox::about(this, title, message);
+}
+
+void MultiChannelViewer::on_NIR_Thresh_valueChanged(int arg1)
+{
+    this->thresh_calibrated = arg1;
 }
