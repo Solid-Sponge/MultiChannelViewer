@@ -370,8 +370,8 @@ void MultiChannelViewer::renderFrame_NIR_Cam(Camera* cam)
 
     unsigned short* rawPtr = static_cast<unsigned short*>(FramePtr1->ImageBuffer);
 
-    //int Histogram_NIR[4096] = {0};
-    int Histogram_NIR[65535] = {0};
+    int Histogram_NIR[4096] = {0};
+    //int Histogram_NIR[65535] = {0};
     int pixel_count = 0;
     //thresh_calibrated = 18;
     for (int i = 0; i < FramePtr1->Height*FramePtr1->Width; i++)
@@ -383,6 +383,16 @@ void MultiChannelViewer::renderFrame_NIR_Cam(Camera* cam)
             pixel_count++;
         }
     }
+
+    /*int Percent_Cutoff = 0;
+    for (int i = 0; i < 4096; i++)
+    {
+        Percent_Cutoff += Histogram_NIR[i];
+        if ((double) (Percent_Cutoff/pixel_count) > 0.99)
+        {
+            break;
+        }
+    }*/
 
     /// False coloring. Sets up 6 thresholds divided evenly between minVal and maxVal
     /// Displays a particular RGB value that corresponds to the intensity of the pixels

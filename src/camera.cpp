@@ -60,13 +60,13 @@ void Camera::captureSetup()
         PvAttrUint32Set(this->Handle, "ExposureValue", 500000);
         PvAttrUint32Set(this->Handle,"StreamBytesPerSecond", 115000000 / 2 - 20000000);
 
-        PvAttrUint32Set(this->Handle, "BinningX", 2);
-        PvAttrUint32Set(this->Handle, "BinningY", 2);
+        PvAttrUint32Set(this->Handle, "BinningX", 1);
+        PvAttrUint32Set(this->Handle, "BinningY", 1);
 
         PvAttrUint32Set(this->Handle, "Width", 640);
         PvAttrUint32Set(this->Handle, "Height", 480);
-        PvAttrUint32Set(this->Handle, "RegionX", 0);  //x = 295
-        PvAttrUint32Set(this->Handle, "RegionY", 0);  //y = 236
+        PvAttrUint32Set(this->Handle, "RegionX", 295);  //x = 295
+        PvAttrUint32Set(this->Handle, "RegionY", 236);  //y = 236
     }
     else
     {
@@ -162,12 +162,13 @@ void Camera::capture()
 
     if (Mono16)
     {
-
-        // Median Filter
+        medianFilter(3);
+        /*// Median Filter
         unsigned short* rawPtr = static_cast<unsigned short*>(Frames[0].ImageBuffer);
         unsigned char* filter = new unsigned char[Frames[0].ImageSize];
+        memset(filter, 0, Frames[0].ImageSize);
         unsigned short* filterPtr = reinterpret_cast<unsigned short*>(filter);
-        QVector<unsigned short> window(9);
+        QVector<unsigned short> window(9);    
         for (int i = 1; i < Frames[0].Height - 1; i++)
         {
             for (int j = 1; j < Frames[0].Width - 1; j++)
@@ -185,9 +186,12 @@ void Camera::capture()
                 qSort(window);
                 filterPtr[Frames[0].Width*(i) + j] = window[4];
             }
-        }
+        }*/
 
-        //Binning Correcting Factor
+
+
+
+        /*//Binning Correcting Factor
         unsigned char * correct = new unsigned char[Frames[0].ImageSize];
         unsigned short* correctPtr = reinterpret_cast<unsigned short*>(correct);
         for (int i = 0; i < Frames[0].Height/2; i++)
@@ -206,11 +210,12 @@ void Camera::capture()
                 //correctPtr[Frames[0].Width*2*i + 1 + 2*j + 1] = rawPtr[Frames[0].Width*i + j];
                 correctPtr[coord((2*i + 1), (2*j + 1), Frames[0].Width)] = filterPtr[Frames[0].Width*(i+100) + (j+135)];
             }
-        }
-        memcpy(rawPtr,correctPtr,Frames[0].ImageSize);
+        }*/
+        //memcpy(rawPtr,correctPtr,Frames[0].ImageSize);
         //memcpy(rawPtr, filterPtr, Frames[0].ImageSize);
+
         //delete[] filter;
-        delete[] correct;
+        //delete[] correct;
     }
 
     emit frameReady(this);
@@ -260,4 +265,129 @@ void Camera::changeBinning(int scale)
 {
     PvAttrUint32Set(this->Handle, "BinningX", scale);
     PvAttrUint32Set(this->Handle, "BinningY", scale);
+}
+
+void Camera::medianFilter(int radius)
+{
+    unsigned short* rawPtr = static_cast<unsigned short*>(Frames[0].ImageBuffer);
+    unsigned char* filter = new unsigned char[Frames[0].ImageSize];
+    memset(filter, 0, Frames[0].ImageSize);
+    unsigned short* filterPtr = reinterpret_cast<unsigned short*>(filter);
+
+    int h = Frames[0].Height;
+    int w = Frames[0].Width;
+    int Histogram[4096] = {0};
+    int median = 0;
+    int middle_element = (((2*radius + 1)*(2*radius+1))/2);
+
+    for (int j = 0; j < (2*radius + 1); j++)
+    {
+        for (int i = 0; i < (2*radius + 1); i++)
+        {
+            Histogram[rawPtr[coord(i,j,w)]]++;
+        }
+    }
+
+    int sum = 0;
+    int k = 0;
+    while (sum <= middle_element)
+    {
+        sum += Histogram[k];
+        k++;
+    }
+    k--;
+    median = k;
+    filterPtr[coord(radius,radius,w)] = median;
+
+    int x = radius + 1;
+    int y = radius;
+    while (true)
+    {
+        for (x = radius + 1; x < (w - radius); x++) //Replace then Slide right
+        {
+            for (int i = 0; i < (2*radius + 1); i++)
+            {
+                Histogram[rawPtr[coord(x - (radius+1), y - radius + i, w)]]--;
+                Histogram[rawPtr[coord(x + radius, y - radius + i, w)]]++;
+            }
+
+            sum = 0;
+            k = 0;
+            while (sum <= middle_element)
+            {
+                sum += Histogram[k];
+                k++;
+            }
+            median = k;
+            filterPtr[coord(x,y,w)] = median;
+        }
+        x--;
+        y++;
+
+        //if (y out of bounds) break;
+        if (y + radius >= h)
+            break;
+
+        for (int i = 0; i < (2*radius + 1); i++) //Slide down
+        {
+            Histogram[rawPtr[coord(x - radius + i, y-(radius+1),w)]]--;
+            Histogram[rawPtr[coord(x - radius + i, y + radius, w)]]++;
+        }
+
+        sum = 0;
+        k = 0;
+        while (sum <= middle_element)
+        {
+            sum += Histogram[k];
+            k++;
+        }
+        median = k;
+        filterPtr[coord(x,y,w)] = median;
+        x--; //Initial Slide left
+
+        while (x >= radius) //Replace then Slide left
+        {
+
+            for (int i = 0; i < (2*radius + 1); i++)
+            {
+                Histogram[rawPtr[coord(x + (radius+1), y - radius + i, w)]]--;
+                Histogram[rawPtr[coord(x - radius, y - radius + i, w)]]++;
+            }
+
+            sum = 0;
+            k = 0;
+            while (sum <= middle_element)
+            {
+                sum += Histogram[k];
+                k++;
+            }
+            median = k;
+            filterPtr[coord(x,y,w)] = median;
+            x--;
+        }
+        x++;
+        y++; //Initial Slide down
+
+        if (y + radius >= h)
+            break;
+
+        for (int i = 0; i < (2*radius + 1); i++) //Slide down
+        {
+            Histogram[rawPtr[coord(x - radius + i, y-(radius+1),w)]]--;
+            Histogram[rawPtr[coord(x - radius + i, y + radius, w)]]++;
+        }
+
+        sum = 0;
+        k = 0;
+        while (sum <= middle_element)
+        {
+            sum += Histogram[k];
+            k++;
+        }
+        median = k;
+        filterPtr[coord(x,y,w)] = median;
+
+    }
+    memcpy(rawPtr, filterPtr, Frames[0].ImageSize);
+    delete[] filter;
 }

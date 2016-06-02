@@ -30,7 +30,7 @@
 #define _x64
 #define FRAMESCOUNT 3
 
-#define coord(i,j,width) (i*width + j)
+//#define coord(x,y,width) (y*width + x)
 
 #include <QObject>
 #include <QThread>
@@ -137,6 +137,10 @@ public:
      * the video resolution scales down by 1/2
      */
     void changeBinning(int scale);
+
+    inline int coord(int x, int y, int width) {return (y*width + x);}
+
+    void medianFilter(int radius);
 
 
 public slots:
