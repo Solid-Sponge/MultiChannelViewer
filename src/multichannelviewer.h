@@ -208,6 +208,14 @@ private slots:  /// GUI related functions
 
     void on_actionCalibrate_NIR_triggered();
 
+    void on_actionAbout_triggered();
+
+    void on_NIR_Thresh_valueChanged(int arg1);
+
+    void on_Brightness_sliderMoved(int position);
+
+    void on_Contrast_sliderMoved(int position);
+
 private:
     Ui::MultiChannelViewer *ui;
     Camera Cam1;                    //!< White Light Camera
@@ -243,6 +251,9 @@ private:
     bool autoexpose;                //!< If true, uses custom autoexposure algorithm
     unsigned int exposure_WL;       //!< WL cam exposure value
     unsigned int exposure_NIR;      //!< NIR cam exposure value
+
+    int brightness_WL;
+    int contrast_WL;
 
     int region_x_WL;                //!< X-coordinate of topleft pixel for WL cam
     int region_y_WL;                //!< Y-coordinate of topleft pixel for WL cam

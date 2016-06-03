@@ -83,8 +83,8 @@
    <widget class="QCheckBox" name="Monochrome">
     <property name="geometry">
      <rect>
-      <x>760</x>
-      <y>820</y>
+      <x>1000</x>
+      <y>880</y>
       <width>111</width>
       <height>20</height>
      </rect>
@@ -97,9 +97,9 @@
     <property name="geometry">
      <rect>
       <x>760</x>
-      <y>520</y>
-      <width>221</width>
-      <height>141</height>
+      <y>510</y>
+      <width>231</width>
+      <height>201</height>
      </rect>
     </property>
     <property name="title">
@@ -110,8 +110,8 @@
       <rect>
        <x>10</x>
        <y>30</y>
-       <width>201</width>
-       <height>94</height>
+       <width>211</width>
+       <height>162</height>
       </rect>
      </property>
      <layout class="QGridLayout" name="gridLayout">
@@ -169,16 +169,71 @@
         </property>
        </widget>
       </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="Brightness_Label">
+        <property name="text">
+         <string>Brightness</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QSlider" name="Brightness">
+        <property name="minimum">
+         <number>-100</number>
+        </property>
+        <property name="maximum">
+         <number>100</number>
+        </property>
+        <property name="singleStep">
+         <number>2</number>
+        </property>
+        <property name="pageStep">
+         <number>20</number>
+        </property>
+        <property name="value">
+         <number>0</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QSlider" name="Contrast">
+        <property name="maximum">
+         <number>200</number>
+        </property>
+        <property name="singleStep">
+         <number>2</number>
+        </property>
+        <property name="pageStep">
+         <number>20</number>
+        </property>
+        <property name="value">
+         <number>100</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="Contrast_Label">
+        <property name="text">
+         <string>Contrast</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </widget>
    <widget class="QGroupBox" name="NIR_Camera">
     <property name="geometry">
      <rect>
-      <x>760</x>
-      <y>660</y>
-      <width>221</width>
-      <height>141</height>
+      <x>759</x>
+      <y>720</y>
+      <width>231</width>
+      <height>191</height>
      </rect>
     </property>
     <property name="title">
@@ -189,11 +244,11 @@
       <rect>
        <x>10</x>
        <y>30</y>
-       <width>201</width>
-       <height>94</height>
+       <width>211</width>
+       <height>130</height>
       </rect>
      </property>
-     <layout class="QGridLayout" name="gridLayout_2">
+     <layout class="QGridLayout" name="gridLayout_2" rowstretch="0,0,0,0" rowminimumheight="0,0,0,0">
       <item row="0" column="0">
        <widget class="QLabel" name="label_6">
         <property name="text">
@@ -248,6 +303,16 @@
         </property>
        </widget>
       </item>
+      <item row="3" column="1">
+       <widget class="QSpinBox" name="NIR_Thresh"/>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="NIR_Thresh_label">
+        <property name="text">
+         <string>Noise Threshold</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </widget>
@@ -255,7 +320,7 @@
     <property name="geometry">
      <rect>
       <x>1020</x>
-      <y>540</y>
+      <y>530</y>
       <width>129</width>
       <height>85</height>
      </rect>
@@ -286,8 +351,8 @@
    <widget class="QCheckBox" name="AutoExposure">
     <property name="geometry">
      <rect>
-      <x>760</x>
-      <y>850</y>
+      <x>1000</x>
+      <y>910</y>
       <width>111</width>
       <height>20</height>
      </rect>
@@ -302,40 +367,51 @@
    <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
-      <x>1000</x>
-      <y>680</y>
+      <x>999</x>
+      <y>740</y>
       <width>171</width>
       <height>56</height>
      </rect>
     </property>
-    <layout class="QVBoxLayout" name="Opacity">
-     <item>
-      <widget class="QSlider" name="opacitySlider">
-       <property name="maximum">
-        <number>10</number>
-       </property>
-       <property name="value">
-        <number>1</number>
-       </property>
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="tickPosition">
-        <enum>QSlider::TicksBelow</enum>
-       </property>
-       <property name="tickInterval">
-        <number>1</number>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QLabel" name="text_Opacity">
-       <property name="text">
-        <string>Opacity</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
+    <layout class="QVBoxLayout" name="Opacity"/>
+   </widget>
+   <widget class="QSlider" name="opacitySlider">
+    <property name="geometry">
+     <rect>
+      <x>1000</x>
+      <y>740</y>
+      <width>169</width>
+      <height>27</height>
+     </rect>
+    </property>
+    <property name="maximum">
+     <number>10</number>
+    </property>
+    <property name="value">
+     <number>1</number>
+    </property>
+    <property name="orientation">
+     <enum>Qt::Horizontal</enum>
+    </property>
+    <property name="tickPosition">
+     <enum>QSlider::TicksBelow</enum>
+    </property>
+    <property name="tickInterval">
+     <number>1</number>
+    </property>
+   </widget>
+   <widget class="QLabel" name="text_Opacity">
+    <property name="geometry">
+     <rect>
+      <x>1001</x>
+      <y>769</y>
+      <width>169</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Opacity</string>
+    </property>
    </widget>
    <zorder>Media</zorder>
    <zorder>cam_1</zorder>
@@ -346,6 +422,8 @@
    <zorder>NIR_Camera</zorder>
    <zorder>AutoExposure</zorder>
    <zorder>layoutWidget</zorder>
+   <zorder>opacitySlider</zorder>
+   <zorder>text_Opacity</zorder>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">
@@ -382,6 +460,11 @@
   <action name="actionCalibrate_NIR">
    <property name="text">
     <string>Calibrate NIR</string>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="text">
+    <string>About</string>
    </property>
   </action>
  </widget>
