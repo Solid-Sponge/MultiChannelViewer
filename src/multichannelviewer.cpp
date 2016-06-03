@@ -736,6 +736,10 @@ void MultiChannelViewer::on_Record_toggled(bool checked)
         QString timestamp_filename_NIR;
         QString timestamp_filename_WL_NIR;
 
+        #ifdef _WIN32
+        system("md Video");
+        #endif
+
         #ifdef __APPLE__
         system("mkdir ../../../Video");
         #endif
@@ -746,6 +750,10 @@ void MultiChannelViewer::on_Record_toggled(bool checked)
             timestamp_filename_WL.append("_WL.avi");
             timestamp_filename_WL.replace(QString(" "), QString("_"));
             timestamp_filename_WL.replace(QString(":"), QString("-"));
+
+            #ifdef _WIN32
+            timestamp_filename_WL = QString("Video\\") + timestamp_filename_WL;
+            #endif
 
             #ifdef __APPLE__
             timestamp_filename_WL = QString("../../../Video/") + timestamp_filename_WL;
@@ -762,6 +770,10 @@ void MultiChannelViewer::on_Record_toggled(bool checked)
             timestamp_filename_NIR.replace(QString(" "), QString("_"));
             timestamp_filename_NIR.replace(QString(":"), QString("-"));
 
+            #ifdef _WIN32
+            timestamp_filename_NIR = QString("Video\\") + timestamp_filename_NIR;
+            #endif
+
             #ifdef __APPLE__
             timestamp_filename_NIR = QString("../../../Video/") + timestamp_filename_NIR;
             #endif
@@ -776,6 +788,10 @@ void MultiChannelViewer::on_Record_toggled(bool checked)
             timestamp_filename_WL_NIR.append("_WL+NIR.avi");
             timestamp_filename_WL_NIR.replace(QString(" "), QString("_"));
             timestamp_filename_WL_NIR.replace(QString(":"), QString("-"));
+
+            #ifdef _WIN32
+            timestamp_filename_WL_NIR = QString("Video\\") + timestamp_filename_WL_NIR;
+            #endif
 
             #ifdef __APPLE__
             timestamp_filename_WL_NIR = QString("../../../Video/") + timestamp_filename_WL_NIR;
