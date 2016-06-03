@@ -20,6 +20,8 @@ MultiChannelViewer::MultiChannelViewer(QWidget *parent) :
     autoexpose = true;
     exposure_WL = 60000;
     exposure_NIR = 500000;
+    brightness_WL = 0;
+    contrast_WL = 100;
     Cam1_Image = new QImage(WIDTH, HEIGHT, QImage::Format_RGB888);
     Cam2_Image = new QImage(WIDTH, HEIGHT, QImage::Format_RGB888);
     Cam2_Image_Raw = new unsigned char[HEIGHT*WIDTH*2];
@@ -295,7 +297,19 @@ void MultiChannelViewer::renderFrame_WL_Cam(Camera* cam)
             bufferPtr++;
             unsigned char b = *bufferPtr;   //!< B-Pixel
             bufferPtr++;
-            QRgb color = qRgb(r, g, b);
+
+            int r_brightcontr = (r*(contrast_WL*0.01) + brightness_WL);
+            int g_brightcontr = (g*(contrast_WL*0.01) + brightness_WL);
+            int b_brightcontr = (b*(contrast_WL*0.01) + brightness_WL);
+
+            if (r_brightcontr > 255) {r_brightcontr = 255;}
+            if (r_brightcontr < 0) {r_brightcontr = 0;}
+            if (g_brightcontr > 255) {g_brightcontr = 255;}
+            if (g_brightcontr < 0) {g_brightcontr = 0;}
+            if (b_brightcontr > 255) {b_brightcontr = 255;}
+            if (b_brightcontr < 0) {b_brightcontr = 0;}
+
+            QRgb color = qRgb(r_brightcontr, g_brightcontr, b_brightcontr);
             imgFrame.setPixel(j, i, color); //!< Sets pixel with (r,g,b) at location j,i
         }
     }
@@ -980,4 +994,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.";
 void MultiChannelViewer::on_NIR_Thresh_valueChanged(int arg1)
 {
     this->thresh_calibrated = arg1;
+}
+void MultiChannelViewer::on_Brightness_sliderMoved(int position)
+{
+    this->brightness_WL = position;
+}
+
+void MultiChannelViewer::on_Contrast_sliderMoved(int position)
+{
+    this->contrast_WL = position;
 }
