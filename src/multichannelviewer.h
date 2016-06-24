@@ -28,6 +28,7 @@
 #define WIDTH 640
 #define HEIGHT 480
 #define AUTOEXPOSURE_CUTOFF 3000.0
+#define PARAMETER_SIZE 56
 
 #ifdef __APPLE__
 #define _OSX
@@ -53,9 +54,11 @@
 #include <QImage>
 #include <QPainter>
 #include <QMutex>
+#include <QFileDialog>
 
 #include <iostream>
 #include <cstdlib>
+#include <fstream>
 
 #include <PvAPI/PvApi.h>
 #include <PvAPI/PvRegIo.h>
@@ -63,6 +66,22 @@
 #include <camera.h>
 #include <FFMPEGClass.h>
 #include <autoexpose.h>
+
+typedef struct Parameters
+{
+    int thresh_calibrated;
+    bool monochrome;
+    double opacity_val;
+    bool autoexpose;
+    unsigned int exposure_WL;
+    unsigned int exposure_NIR;
+    int brightness_WL;
+    int contrast_WL;
+    int region_x_WL;
+    int region_y_WL;
+    int region_x_NIR;
+    int region_y_NIR;
+} Param;
 
 namespace Ui {
 class MultiChannelViewer;
@@ -178,6 +197,16 @@ public slots:
      */
     void renderFrame_Cam3();
 
+    /**
+     * @brief Automatically sets the NIR False-coloring cutoff threshold
+     *
+     * The slot on_actionCalibrate_NIR_triggered() is called before this function is called (from the GUI).
+     * The setup is such that a non-modal window appears, allowing the cameras to function in the background
+     * while the popup window is visible. The user is then prompted to aim the NIR camera at an "empty" space,
+     * and the function then takes the average value of the pixels for that frame, and sets the cutoff equal to that + a small offset
+     *
+     * @param button QAbstractButton passed from on_actionCalibrate_NIR_triggered() slot
+     */
     void calibrate_NIR_thresh(QAbstractButton* button);
 
 protected:
@@ -216,6 +245,10 @@ private slots:  /// GUI related functions
 
     void on_Contrast_sliderMoved(int position);
 
+    void on_actionSave_Parameters_triggered();
+
+    void on_actionLoad_Parameters_triggered();
+
 private:
     Ui::MultiChannelViewer *ui;
     Camera Cam1;                    //!< White Light Camera
@@ -237,13 +270,13 @@ private:
     FFMPEG Video2;                  //!< NIR Video Encoder
     FFMPEG Video3;                  //!< WL+NIR Video Encoder
 
-    int thresh_calibrated;
     bool recording;                 //!< Set to true when Video Encoders are recording
 
     bool screenshot_cam1;           //!< Set to true when screenshotting cam1
     bool screenshot_cam2;           //!< Set to true when screenshotting cam2
     bool screenshot_cam3;           //!< Set to true when screenshotting thirdscreen
 
+    int thresh_calibrated;
     bool monochrome;                //!< If true, displays monochrome underlay in third screen
     double opacity_val;             //!< Value of opacity overlay for third screen
 

@@ -735,6 +735,18 @@ void MultiChannelViewer::calibrate_NIR_thresh(QAbstractButton *button)
     }
 }
 
+/*void writeParameters(QString file_name, Param& data)
+{
+  //std::ofstream out(file_name.);
+  //out.write(reinterpret_cast<char*>(&data), sizeof(Param));
+}
+
+void readParameters(std::string file_name, Param& data)
+{
+  std::ifstream in(file_name.c_str());
+  in.read(reinterpret_cast<char*>(&data), sizeof(Param));
+}*/
+
 /////////////////////////////////////////////////////////////
 ///////// GUI related stuff below (event handlers) //////////
 /////////////////////////////////////////////////////////////
@@ -874,28 +886,34 @@ void MultiChannelViewer::on_opacitySlider_valueChanged(int value)
 
 void MultiChannelViewer::on_RegionX_WL_valueChanged(int arg1)
 {
+    this->region_x_WL = arg1;
     PvAttrUint32Set(*(Cam1.getHandle()), "RegionX", arg1);
 }
 
 void MultiChannelViewer::on_RegionY_WL_valueChanged(int arg1)
 {
+    this->region_y_WL = arg1;
     PvAttrUint32Set(*(Cam1.getHandle()), "RegionY", arg1);
 }
 
 void MultiChannelViewer::on_RegionX_NIR_valueChanged(int arg1)
 {
+    this->region_x_NIR  = arg1;
     if (this->Two_Cameras_Connected)
         PvAttrUint32Set(*(Cam2.getHandle()), "RegionX", arg1);
-    else
+    else if (!Single_Cameras_is_WL)
         PvAttrUint32Set(*(Cam1.getHandle()), "RegionX", arg1);
+    return;
 }
 
 void MultiChannelViewer::on_RegionY_NIR_valueChanged(int arg1)
 {
+    this->region_y_NIR = arg1;
     if (this->Two_Cameras_Connected)
         PvAttrUint32Set(*(Cam2.getHandle()), "RegionY", arg1);
-    else
+    else if (!Single_Cameras_is_WL)
         PvAttrUint32Set(*(Cam1.getHandle()), "RegionY", arg1);
+    return;
 }
 
 void MultiChannelViewer::on_AutoExposure_stateChanged(int arg1)
@@ -1003,4 +1021,84 @@ void MultiChannelViewer::on_Brightness_sliderMoved(int position)
 void MultiChannelViewer::on_Contrast_sliderMoved(int position)
 {
     this->contrast_WL = position;
+}
+
+void MultiChannelViewer::on_actionSave_Parameters_triggered()
+{
+    Param parameters;
+    parameters.autoexpose = this->autoexpose;
+    parameters.brightness_WL = this->brightness_WL;
+    parameters.contrast_WL = this->contrast_WL;
+    parameters.exposure_NIR = this->exposure_NIR;
+    parameters.exposure_WL = this->exposure_NIR;
+    parameters.monochrome= this->monochrome;
+    parameters.opacity_val = this->opacity_val;
+    parameters.region_x_NIR = this->region_x_NIR;
+    parameters.region_x_WL = this->region_x_WL;
+    parameters.region_y_NIR = this->region_y_NIR;
+    parameters.region_y_WL = this->region_y_WL;
+    parameters.thresh_calibrated = this->thresh_calibrated;
+
+    QString curPath = QDir::currentPath();
+    QString fileName = QFileDialog::getSaveFileName(this, tr("Save File"), curPath, tr("Data File (*.dat)"));
+    if (fileName.isEmpty())
+        return;
+
+    QFile file(fileName);
+    file.open(QIODevice::WriteOnly);
+    QDataStream writeStream(&file);
+    if (writeStream.writeRawData(reinterpret_cast<char*>(&parameters), sizeof(Param)) != -1)
+        std::cout << "Success\n";
+    else
+        std::cout << "Failed\n";
+    //writeParameters(fileName_std, parameters);
+}
+
+void MultiChannelViewer::on_actionLoad_Parameters_triggered()
+{
+    Param parameters;
+    QString curPath = QDir::currentPath();
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Open Image"), curPath, tr("Data File (*.dat)"));
+    if (fileName.isEmpty())
+        return;
+
+    QFile file(fileName);
+    file.open(QIODevice::ReadOnly);
+    if (file.size() != sizeof(Param))
+    {
+        QMessageBox errBox;
+        errBox.critical(0,"Error","File is not a valid Parameter file.");
+        errBox.setFixedSize(500,200);
+        return;
+    }
+    QDataStream readStream(&file);
+    if (readStream.readRawData(reinterpret_cast<char*>(&parameters), sizeof(Param)) != -1)
+    {
+        std::cout << "Success " << parameters.thresh_calibrated << "\n";
+        this->autoexpose = parameters.autoexpose;
+        this->brightness_WL = parameters.brightness_WL;
+        this->contrast_WL = parameters.contrast_WL;
+        this->exposure_NIR = parameters.exposure_NIR;
+        this->exposure_WL = parameters.exposure_WL;
+        this->monochrome = parameters.monochrome;
+        this->opacity_val = parameters.opacity_val;
+        this->region_x_NIR = parameters.region_x_NIR;
+        this->region_x_WL = parameters.region_x_WL;
+        this->region_y_NIR - parameters.region_y_NIR;
+        this->region_y_WL = parameters.region_y_WL;
+        this->thresh_calibrated = parameters.thresh_calibrated;
+
+        on_RegionX_NIR_valueChanged(parameters.region_x_NIR);
+        on_RegionX_WL_valueChanged(parameters.region_x_WL);
+        on_RegionY_NIR_valueChanged(parameters.region_y_NIR);
+        on_RegionY_WL_valueChanged(parameters.region_y_WL);
+    }
+    else
+    {
+        QMessageBox errBox;
+        errBox.critical(0,"Error","An Unexpected Error occured while loading the Parameter file");
+        errBox.setFixedSize(500,200);
+        return;
+    }
+
 }
